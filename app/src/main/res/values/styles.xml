@@ -1,0 +1,10 @@
+<resources>
+    <string name="widget_description">Today’s RoutineFlow momentum</string>
+    <string name="week_widget_description">RoutineFlow weekly check-ins</string>
+    <style name="Theme.RoutineFlow" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+</resources>
