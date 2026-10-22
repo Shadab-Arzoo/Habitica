@@ -1,7 +1,5 @@
 package com.routineflow
 
-import android.Manifest
-import android.content.pm.PackageManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -9,7 +7,6 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
@@ -18,8 +15,15 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -30,6 +34,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -39,12 +44,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Check
@@ -52,23 +58,46 @@ import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Insights
 import androidx.compose.material.icons.rounded.LightMode
+import androidx.compose.material.icons.rounded.LocalFlorist
 import androidx.compose.material.icons.rounded.NotificationsActive
+import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.WaterDrop
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -77,28 +106,48 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.routineflow.data.local.HabitEntity
+import com.routineflow.data.local.TaskEntity
+import com.routineflow.domain.ExistingTimeBlock
+import com.routineflow.domain.PlannableTask
+import com.routineflow.domain.PlannerEngine
+import com.routineflow.domain.PlannerRequest
+import com.routineflow.domain.PlannerResult
 import com.routineflow.notifications.ReminderReceiver
+import com.routineflow.ui.OnboardingScreen
+import com.routineflow.ui.OnboardingViewModel
 import com.routineflow.ui.RoutineViewModel
 import com.routineflow.ui.TodayUiState
 import com.routineflow.ui.components.GlassSurface
 import com.routineflow.ui.theme.RoutineFlowTheme
+import com.routineflow.ui.theme.LiquidGlassTokens
 import dagger.hilt.android.AndroidEntryPoint
 import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
@@ -108,12 +157,6 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         ReminderReceiver.createChannel(this)
-        if (
-            android.os.Build.VERSION.SDK_INT >= 33 &&
-            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
-        ) {
-            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 42)
-        }
         setContent { RoutineFlowRoot() }
     }
 }
@@ -122,159 +165,138 @@ class MainActivity : ComponentActivity() {
 private fun RoutineFlowRoot() {
     val systemDarkMode = isSystemInDarkTheme()
     var darkMode by remember { mutableStateOf(systemDarkMode) }
+    val onboardingViewModel: OnboardingViewModel = hiltViewModel()
+    val onboarding by onboardingViewModel.state.collectAsStateWithLifecycle()
+    val reducedMotion by onboardingViewModel.reducedMotion.collectAsStateWithLifecycle()
     RoutineFlowTheme(darkTheme = darkMode) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            AmbientBackground(darkMode = darkMode)
-            RoutineFlowApp(darkMode = darkMode, onThemeToggle = { darkMode = !darkMode })
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.background
+        ) {
+            if (onboarding.completed) {
+                RoutineFlowApp(
+                    darkMode = darkMode,
+                    onThemeToggle = { darkMode = !darkMode },
+                    reducedMotion = reducedMotion,
+                    onReducedMotionChange = onboardingViewModel::setReducedMotion
+                )
+            } else {
+                OnboardingScreen(onFinished = {})
+            }
         }
     }
 }
 
-/**
- * Soft ambient light orbs in pastel colors to create realistic refraction
- * through frosted glass surfaces.
- */
-@Composable
-private fun AmbientBackground(darkMode: Boolean) {
-    val primaryGlow = if (darkMode) Color(0xFF7B61FF).copy(alpha = 0.18f) else Color(0xFF8B78FF).copy(alpha = 0.22f)
-    val secondaryGlow = if (darkMode) Color(0xFF4AAFA3).copy(alpha = 0.14f) else Color(0xFF52B5A8).copy(alpha = 0.20f)
-    val tertiaryGlow = if (darkMode) Color(0xFFE77BAF).copy(alpha = 0.12f) else Color(0xFFE57EA8).copy(alpha = 0.18f)
-
-    BoxWithConstraints(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-    ) {
-        val glowSize = maxWidth.coerceIn(220.dp, 360.dp)
-        // Top-Right Soft Purple Glow
-        Box(
-            modifier = Modifier
-                .offset(x = maxWidth * .58f, y = -(glowSize * .12f))
-                .size(glowSize)
-                .clip(CircleShape)
-                .background(primaryGlow)
-                .blur(80.dp)
-        )
-        // Mid-Left Soft Mint/Sage Glow
-        Box(
-            modifier = Modifier
-                .offset(x = -(glowSize * .35f), y = maxHeight * .30f)
-                .size(glowSize * .8f)
-                .clip(CircleShape)
-                .background(secondaryGlow)
-                .blur(90.dp)
-        )
-        // Bottom-Right Soft Pastel Rose Glow
-        Box(
-            modifier = Modifier
-                .offset(x = maxWidth * .50f, y = maxHeight * .70f)
-                .size(glowSize * .85f)
-                .clip(CircleShape)
-                .background(tertiaryGlow)
-                .blur(85.dp)
-        )
-    }
-}
-
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun RoutineFlowApp(
     darkMode: Boolean,
     onThemeToggle: () -> Unit,
+    reducedMotion: Boolean,
+    onReducedMotionChange: (Boolean) -> Unit,
     viewModel: RoutineViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val tasks by viewModel.tasks.collectAsStateWithLifecycle()
     var showAdd by remember { mutableStateOf(false) }
+    var showAddTask by remember { mutableStateOf(false) }
     var selectedTab by remember { mutableIntStateOf(0) }
     val haptics = LocalHapticFeedback.current
 
     Scaffold(
-        containerColor = Color.Transparent,
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        text = when (selectedTab) {
+                            0 -> "RoutineFlow"
+                            1 -> "Sacred Garden 🌱"
+                            2 -> "Progress"
+                            3 -> "Tasks"
+                            4 -> "Planner"
+                            else -> "Settings"
+                        },
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface
+                )
+            )
+        },
         floatingActionButton = {
             AnimatedVisibility(
                 visible = selectedTab == 0,
                 enter = fadeIn() + expandVertically(),
                 exit = fadeOut() + shrinkVertically()
             ) {
-                // Glassmorphic FAB with glowing ambient shadow
-                Box(
-                    modifier = Modifier
-                        .padding(bottom = 6.dp, end = 6.dp)
-                        .clip(CircleShape)
-                        .background(
-                            Brush.linearGradient(
-                                colors = listOf(
-                                    MaterialTheme.colorScheme.primary,
-                                    MaterialTheme.colorScheme.secondary
-                                )
-                            )
-                        )
+                FloatingActionButton(
+                    onClick = {
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        showAddTask = true
+                    },
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.semantics { contentDescription = "Add a new habit" }
                 ) {
-                    FloatingActionButton(
-                        onClick = {
-                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                            showAdd = true
-                        },
-                        shape = CircleShape,
-                        containerColor = Color.Transparent,
-                        contentColor = Color.White,
-                        elevation = androidx.compose.material3.FloatingActionButtonDefaults.elevation(0.dp, 0.dp),
-                        modifier = Modifier
-                            .semantics { contentDescription = "Add a new habit" }
-                            .padding(2.dp)
-                    ) {
-                        Icon(
-                            Icons.Rounded.Add,
-                            contentDescription = "Add habit",
-                            modifier = Modifier.size(30.dp)
-                        )
-                    }
+                    Icon(
+                        Icons.Rounded.Add,
+                        contentDescription = null,
+                        modifier = Modifier.size(28.dp)
+                    )
                 }
             }
         },
         bottomBar = {
-            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                GlassSurface(
-                    Modifier
-                        .fillMaxWidth()
-                        .widthIn(max = 640.dp)
-                        .navigationBarsPadding()
-                        .padding(horizontal = 22.dp, vertical = 10.dp),
-                    cornerRadius = 32.dp,
-                    elevation = 14.dp
-                ) {
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 6.dp),
-                        horizontalArrangement = Arrangement.SpaceEvenly,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        NavigationItem("Today", Icons.Rounded.Check, selectedTab == 0) {
-                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            selectedTab = 0
-                        }
-                        NavigationItem("Progress", Icons.Rounded.Insights, selectedTab == 1) {
-                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            selectedTab = 1
-                        }
-                        NavigationItem("Settings", Icons.Rounded.Settings, selectedTab == 2) {
-                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            selectedTab = 2
-                        }
-                    }
+            RoutineFlowDock(
+                selectedTab = selectedTab,
+                reducedMotion = reducedMotion,
+                onTabSelected = {
+                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    selectedTab = it
                 }
-            }
+            )
         }
     ) { padding ->
         AnimatedContent(
             targetState = selectedTab,
+            transitionSpec = {
+                if (reducedMotion) {
+                    fadeIn() togetherWith fadeOut()
+                } else if (targetState > initialState) {
+                    (slideInHorizontally { it / 5 } + fadeIn()) togetherWith
+                        (slideOutHorizontally { -it / 5 } + fadeOut())
+                } else {
+                    (slideInHorizontally { -it / 5 } + fadeIn()) togetherWith
+                        (slideOutHorizontally { it / 5 } + fadeOut())
+                }
+            },
             label = "screen_transition",
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
         ) { tab ->
             when (tab) {
-                0 -> TodayScreen(state, viewModel, padding, onOpenAdd = { showAdd = true })
-                1 -> ProgressScreen(state, padding)
-                else -> SettingsScreen(darkMode, onThemeToggle, padding)
+                0 -> TodayScreen(
+                    state = state,
+                    tasks = tasks,
+                    viewModel = viewModel,
+                    onOpenAdd = { showAdd = true },
+                    onOpenTask = { showAddTask = true }
+                )
+                1 -> GardenScreen(state)
+                2 -> ProgressScreen(state)
+                3 -> AllTasksScreen(tasks, viewModel, onOpenTask = { showAddTask = true })
+                4 -> PlannerScreen(tasks)
+                else -> SettingsScreen(
+                    darkMode = darkMode,
+                    onThemeToggle = onThemeToggle,
+                    reducedMotion = reducedMotion,
+                    onReducedMotionChange = onReducedMotionChange
+                )
             }
         }
     }
@@ -288,50 +310,224 @@ private fun RoutineFlowApp(
             }
         )
     }
+    if (showAddTask) {
+        AddTaskDialog(
+            onDismiss = { showAddTask = false },
+            onAdd = { title, description, category, priority, estimate, dueAt ->
+                viewModel.addTask(title, description, category, priority, dueAt, estimate)
+                showAddTask = false
+            }
+        )
+    }
+}
+
+@Composable
+private fun RoutineFlowDock(
+    selectedTab: Int,
+    reducedMotion: Boolean,
+    onTabSelected: (Int) -> Unit
+) {
+    val labels = listOf("Today", "Garden", "Progress", "Tasks", "Planner", "Settings")
+    val icons = listOf(
+        Icons.Rounded.Check,
+        Icons.Rounded.LocalFlorist,
+        Icons.Rounded.Insights,
+        Icons.Rounded.Check,
+        Icons.Rounded.AutoAwesome,
+        Icons.Rounded.Settings
+    )
+    val density = LocalDensity.current
+    val haptics = LocalHapticFeedback.current
+    var widthPx by remember { mutableFloatStateOf(0f) }
+    var fingerX by remember { mutableFloatStateOf(0f) }
+    var dragging by remember { mutableStateOf(false) }
+    val slotPx = widthPx / labels.size
+    val selectedCenter = slotPx * (selectedTab + 0.5f)
+    val animatedCenter by animateFloatAsState(
+        targetValue = selectedCenter,
+        animationSpec = if (reducedMotion) {
+            androidx.compose.animation.core.snap()
+        } else {
+            spring(stiffness = Spring.StiffnessMediumLow)
+        },
+        label = "dock_indicator"
+    )
+    val indicatorCenter = if (dragging) fingerX else animatedCenter
+    val indicatorScale by animateFloatAsState(
+        targetValue = if (dragging) 1.04f else 1f,
+        animationSpec = if (reducedMotion) {
+            androidx.compose.animation.core.snap()
+        } else {
+            spring(stiffness = Spring.StiffnessMedium)
+        },
+        label = "dock_indicator_scale"
+    )
+
+    fun tabFor(x: Float): Int {
+        if (slotPx <= 0f) return selectedTab
+        return (x / slotPx).toInt().coerceIn(labels.indices)
+    }
+
+    NavigationBar(
+        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
+        tonalElevation = 0.dp,
+        modifier = Modifier.navigationBarsPadding()
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(76.dp)
+                .onSizeChanged { widthPx = it.width.toFloat() }
+                .pointerInput(slotPx, reducedMotion) {
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        dragging = true
+                        fingerX = down.position.x.coerceIn(0f, widthPx)
+                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        var released = false
+                        while (!released) {
+                            val event = awaitPointerEvent()
+                            event.changes.forEach { change ->
+                                fingerX = change.position.x.coerceIn(0f, widthPx)
+                                if (!change.pressed) {
+                                    released = true
+                                } else {
+                                    change.consume()
+                                }
+                            }
+                        }
+                        dragging = false
+                        onTabSelected(tabFor(fingerX))
+                    }
+                }
+        ) {
+            if (slotPx > 0f) {
+                Box(
+                    modifier = Modifier
+                        .width(with(density) { slotPx.toDp() })
+                        .fillMaxHeight()
+                        .graphicsLayer {
+                            translationX = indicatorCenter - slotPx / 2f
+                            scaleX = indicatorScale
+                            scaleY = indicatorScale
+                        }
+                        .padding(horizontal = 4.dp, vertical = 6.dp)
+                        .clip(RoundedCornerShape(LiquidGlassTokens.dockRadius))
+                        .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.9f))
+                )
+            }
+            Row(Modifier.fillMaxSize()) {
+                labels.forEachIndexed { index, label ->
+                    val highlighted = index == tabFor(indicatorCenter)
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .clickable {
+                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                onTabSelected(index)
+                            }
+                            .semantics {
+                                contentDescription = "$label tab${if (index == selectedTab) ", selected" else ""}"
+                            }
+                            .padding(vertical = 9.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                imageVector = icons[index],
+                                contentDescription = null,
+                                tint = if (highlighted) {
+                                    MaterialTheme.colorScheme.onPrimaryContainer
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                }
+                            )
+                            Spacer(Modifier.height(2.dp))
+                            Text(
+                                text = label,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontSize = 10.sp,
+                                color = if (highlighted) {
+                                    MaterialTheme.colorScheme.onPrimaryContainer
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AdaptiveLazyColumn(
+    modifier: Modifier = Modifier,
+    contentPadding: PaddingValues,
+    verticalArrangement: Arrangement.Vertical,
+    content: LazyListScope.() -> Unit
+) {
+    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+        val contentWidth = when {
+            maxWidth >= 1000.dp -> LiquidGlassTokens.wideContentWidth
+            maxWidth >= 600.dp -> LiquidGlassTokens.compactContentWidth
+            else -> maxWidth
+        }
+        LazyColumn(
+            modifier = Modifier
+                .width(contentWidth)
+                .align(Alignment.TopCenter),
+            contentPadding = if (maxWidth >= 600.dp) {
+                PaddingValues(
+                    start = contentPadding.calculateLeftPadding(androidx.compose.ui.unit.LayoutDirection.Ltr) + 8.dp,
+                    end = contentPadding.calculateRightPadding(androidx.compose.ui.unit.LayoutDirection.Ltr) + 8.dp,
+                    top = contentPadding.calculateTopPadding(),
+                    bottom = contentPadding.calculateBottomPadding()
+                )
+            } else {
+                contentPadding
+            },
+            verticalArrangement = verticalArrangement,
+            content = content
+        )
+    }
 }
 
 @Composable
 private fun TodayScreen(
     state: TodayUiState,
+    tasks: List<TaskEntity>,
     viewModel: RoutineViewModel,
-    padding: PaddingValues,
-    onOpenAdd: () -> Unit
+    onOpenAdd: () -> Unit,
+    onOpenTask: () -> Unit
 ) {
-    val horizontalPadding = if (LocalConfiguration.current.screenWidthDp < 600) 16.dp else 28.dp
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxWidth()
-                .widthIn(max = 760.dp)
-                .padding(padding)
-                .statusBarsPadding(),
-            contentPadding = PaddingValues(
-                start = horizontalPadding,
-                end = horizontalPadding,
-                top = 22.dp,
-                bottom = 110.dp
-            ),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
+    AdaptiveLazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
         item {
             Column {
                 Text(
-                    "Good evening",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.85f),
-                    fontWeight = FontWeight.Medium
+                    text = "Good evening",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary
                 )
                 Text(
-                    LocalDate.now().format(
+                    text = LocalDate.now().format(
                         DateTimeFormatter.ofPattern("EEEE, MMM d", Locale.getDefault())
                     ),
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
+                    style = MaterialTheme.typography.headlineLarge,
+                    color = MaterialTheme.colorScheme.onBackground
                 )
             }
         }
+
+        item { DailyTreeCard(state, tasks) }
         item { MomentumCard(state) }
+        item { TaskSection(tasks, viewModel, onOpenTask) }
         item {
             AnimatedVisibility(
                 visible = state.recoveryCount > 0,
@@ -343,28 +539,23 @@ private fun TodayScreen(
         }
         item {
             Row(
-                Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    "Your habits",
+                    text = "Your habits",
                     style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold
+                    color = MaterialTheme.colorScheme.onBackground
                 )
                 TextButton(onClick = onOpenAdd) {
                     Icon(
                         Icons.Rounded.Add,
                         contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                        tint = MaterialTheme.colorScheme.primary
+                        modifier = Modifier.size(18.dp)
                     )
                     Spacer(Modifier.width(4.dp))
-                    Text(
-                        "Add more",
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.SemiBold
-                    )
+                    Text("Add habit")
                 }
             }
         }
@@ -375,55 +566,665 @@ private fun TodayScreen(
                 exit = fadeOut()
             ) {
                 GlassSurface(
-                    Modifier
-                        .fillMaxWidth()
-                        .clickable(onClick = onOpenAdd)
+                    modifier = Modifier.fillMaxWidth().clickable(onClick = onOpenAdd),
+                    cornerRadius = LiquidGlassTokens.cardRadius,
+                    elevation = 0.dp
                 ) {
                     Column(
-                        Modifier
+                        modifier = Modifier
                             .fillMaxWidth()
-                            .padding(32.dp),
+                            .padding(28.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Surface(
                             shape = CircleShape,
-                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
-                            modifier = Modifier.size(56.dp)
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            modifier = Modifier.size(48.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(
                                     Icons.Rounded.Add,
-                                    contentDescription = "Add habit",
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(28.dp)
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer
                                 )
                             }
                         }
                         Text(
-                            "Build your first rhythm",
+                            text = "Build your first rhythm",
                             style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            "Tap here or the + button below to add your first habit.",
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f),
-                            fontSize = 14.sp
+                            text = "Tap here or the + button below to add your first habit.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
             }
         }
-            items(state.habits, key = { it.id }) { habit ->
-                HabitCard(
-                    habit = habit,
-                    completed = habit.id in state.completedIds,
-                    onComplete = { viewModel.complete(habit.id) },
-                    onArchive = { viewModel.archive(habit.id) }
+        items(state.habits, key = { it.id }) { habit ->
+            HabitCard(
+                habit = habit,
+                completed = habit.id in state.completedIds,
+                onComplete = { viewModel.complete(habit.id) },
+                onArchive = { viewModel.archive(habit.id) }
+            )
+        }
+    }
+}
+
+/**
+ * Interactive Daily Tree Card on the Today Screen.
+ * Renders a low-poly 3D tree canvas that grows as tasks/habits are completed!
+ */
+@Composable
+private fun DailyTreeCard(state: TodayUiState, tasks: List<TaskEntity>) {
+    val haptics = LocalHapticFeedback.current
+    var extraWater by remember { mutableIntStateOf(0) }
+    var isWatering by remember { mutableStateOf(false) }
+
+    val completedHabits = state.completedCount
+    val completedTasks = tasks.count { it.completed }
+    val totalItems = (state.habits.size + tasks.size).coerceAtLeast(1)
+    val completedItems = completedHabits + completedTasks
+    val waterDrops = (completedHabits * 25) + (completedTasks * 20) + extraWater
+    val growthRatio = (completedItems.toFloat() / totalItems).coerceIn(0f, 1f)
+
+    val animatedGrowth by animateFloatAsState(
+        targetValue = growthRatio,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "tree_growth"
+    )
+
+    GlassSurface(
+        modifier = Modifier.fillMaxWidth(),
+        cornerRadius = LiquidGlassTokens.cardRadius,
+        elevation = 10.dp
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "Today's Sacred Tree 🌱",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = when {
+                            growthRatio >= 1.0f -> "100% All tasks done - Blooming!"
+                            growthRatio >= 0.75f -> "75% Almost there - Large Tree"
+                            growthRatio >= 0.50f -> "50% Half-grown Tree"
+                            growthRatio >= 0.25f -> "25% Small Sprout"
+                            else -> "0% No tasks done yet"
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            Icons.Rounded.WaterDrop,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Text(
+                            text = "💧 $waterDrops Drops",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
+                }
+            }
+
+            // Low-Poly 3D Tree Canvas Display
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(140.dp)
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(MaterialTheme.colorScheme.surfaceContainerHighest),
+                contentAlignment = Alignment.Center
+            ) {
+                Canvas(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer {
+                            scaleX = if (isWatering) 1.15f else 1.0f
+                            scaleY = if (isWatering) 1.15f else 1.0f
+                        }
+                ) {
+                    val centerX = size.width / 2f
+                    val centerY = size.height * 0.82f
+
+                    drawIsoTile(centerX, centerY, 140f, 75f, Color(0xFF4ADE80), false)
+                    if (animatedGrowth > 0f) {
+                        drawLowPoly3DTree(centerX, centerY, 1.4f, animatedGrowth)
+                    } else {
+                        drawLowPolyRock(centerX, centerY)
+                    }
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                LinearProgressIndicator(
+                    progress = { animatedGrowth },
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(8.dp)
+                        .clip(CircleShape),
+                    color = MaterialTheme.colorScheme.primary,
+                    trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    strokeCap = StrokeCap.Round
                 )
+
+                Spacer(Modifier.width(12.dp))
+
+                FilledTonalButton(
+                    onClick = {
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        extraWater += 50
+                        isWatering = true
+                    },
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(
+                        Icons.Rounded.WaterDrop,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text("Test Water 💧")
+                }
             }
         }
     }
+}
+
+/**
+ * Dedicated Interactive Gaming Section (Sacred Tree Garden).
+ * Features Low-Poly 3D Trees drawn directly on Canvas tiles for 2.5D Isometric & 3D Perspective!
+ */
+@Composable
+private fun GardenScreen(state: TodayUiState) {
+    var is3DMode by remember { mutableStateOf(false) }
+    var tiltAngle by remember { mutableFloatStateOf(0.45f) }
+    var selectedDayIndex by remember { mutableIntStateOf(0) }
+
+    val today = LocalDate.now()
+    val pastDays = remember(today) { (27 downTo 0).map { today.minusDays(it.toLong()) } }
+
+    AdaptiveLazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        item {
+            GlassSurface(
+                modifier = Modifier.fillMaxWidth(),
+                cornerRadius = LiquidGlassTokens.cardRadius,
+                elevation = 10.dp
+            ) {
+                Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                "Sacred Forest Garden 🌱",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                "Trees grow based on task completion phases (25%, 50%, 75%, 100%).",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        AssistChip(
+                            onClick = {},
+                            label = { Text("${pastDays.count { (state.activity[it] ?: 0) > 0 }} Trees Grown") },
+                            leadingIcon = { Icon(Icons.Rounded.LocalFlorist, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                        )
+                    }
+
+                    // View Mode Switcher (2.5D Isometric vs 3D Perspective)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                            .padding(4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (!is3DMode) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { is3DMode = false }
+                        ) {
+                            Box(Modifier.padding(vertical = 8.dp), contentAlignment = Alignment.Center) {
+                                Text(
+                                    "2.5D Isometric Grid",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = if (!is3DMode) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (!is3DMode) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (is3DMode) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { is3DMode = true }
+                        ) {
+                            Box(Modifier.padding(vertical = 8.dp), contentAlignment = Alignment.Center) {
+                                Text(
+                                    "3D Perspective Forest",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = if (is3DMode) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (is3DMode) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (is3DMode) {
+            item {
+                OutlinedCard(Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
+                    Row(
+                        Modifier
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                            .fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("3D Camera Angle:", style = MaterialTheme.typography.labelMedium)
+                        Spacer(Modifier.width(12.dp))
+                        Slider(
+                            value = tiltAngle,
+                            onValueChange = { tiltAngle = it },
+                            valueRange = 0.2f..0.8f,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
+        }
+
+        // Low-Poly 3D Garden Canvas
+        item {
+            ElevatedCard(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(24.dp)
+            ) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    val primaryColor = MaterialTheme.colorScheme.primary
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(340.dp)
+                            .clip(RoundedCornerShape(18.dp))
+                            .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                    ) {
+                        val cols = 7
+                        Canvas(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .pointerInput(is3DMode, tiltAngle) {
+                                    detectTapGestures { offset ->
+                                        val startX = size.width / 2f
+                                        val startY = if (is3DMode) size.height * (1f - tiltAngle) else 80.dp.toPx()
+                                        val tileWidth = size.width / 5.2f
+                                        val tileHeight = tileWidth * 0.52f
+
+                                        val closestIndex = pastDays.indices.minByOrNull { index ->
+                                            val row = index / cols
+                                            val col = index % cols
+                                            val isoX = if (!is3DMode) {
+                                                startX + (col - row) * (tileWidth * 0.48f)
+                                            } else {
+                                                val depth = 1.0f + row * 0.35f
+                                                val scale = 1.0f / depth
+                                                startX + (col - cols / 2f) * (tileWidth * scale * 0.9f)
+                                            }
+                                            val isoY = if (!is3DMode) {
+                                                startY + (col + row) * (tileHeight * 0.42f)
+                                            } else {
+                                                startY + row * (tileHeight * 0.85f * (1.2f - tiltAngle))
+                                            }
+                                            val dx = offset.x - isoX
+                                            val dy = offset.y - isoY
+                                            dx * dx + dy * dy
+                                        } ?: 0
+                                        selectedDayIndex = closestIndex
+                                    }
+                                }
+                        ) {
+                            val tileWidth = size.width / 5.2f
+                            val tileHeight = tileWidth * 0.52f
+                            val startX = size.width / 2f
+                            val startY = if (is3DMode) size.height * (1f - tiltAngle) else 80.dp.toPx()
+
+                            pastDays.forEachIndexed { index, dayDate ->
+                                val row = index / cols
+                                val col = index % cols
+                                val activityCount = state.activity[dayDate] ?: 0
+                                val dayRatio = (activityCount / 4f).coerceIn(0f, 1f)
+
+                                val isoX = if (!is3DMode) {
+                                    startX + (col - row) * (tileWidth * 0.48f)
+                                } else {
+                                    val depth = 1.0f + row * 0.35f
+                                    val scale = 1.0f / depth
+                                    startX + (col - cols / 2f) * (tileWidth * scale * 0.9f)
+                                }
+
+                                val isoY = if (!is3DMode) {
+                                    startY + (col + row) * (tileHeight * 0.42f)
+                                } else {
+                                    startY + row * (tileHeight * 0.85f * (1.2f - tiltAngle))
+                                }
+
+                                val isSelected = index == selectedDayIndex
+                                val tileColor = when {
+                                    isSelected -> primaryColor
+                                    activityCount > 0 -> Color(0xFF4ADE80) // Lush green grass
+                                    else -> Color(0xFFE5E7EB) // Dry earth skipped tile
+                                }
+
+                                // 1. Draw 3D Isometric Land Tile
+                                drawIsoTile(isoX, isoY, tileWidth, tileHeight, tileColor, isSelected)
+
+                                // 2. Draw Low-Poly Voxel 3D Tree according to exact phase or Stone for 0%
+                                if (dayRatio > 0f) {
+                                    val scale = if (is3DMode) 1.0f / (1.0f + row * 0.25f) else 1.0f
+                                    drawLowPoly3DTree(isoX, isoY, scale, dayRatio)
+                                } else {
+                                    drawLowPolyRock(isoX, isoY)
+                                }
+                            }
+                        }
+                    }
+
+                    // Selected Day Tree Summary Card
+                    val selectedDate = pastDays.getOrNull(selectedDayIndex) ?: today
+                    val selectedActivity = state.activity[selectedDate] ?: 0
+                    val selectedRatio = (selectedActivity / 4f).coerceIn(0f, 1f)
+
+                    OutlinedCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(
+                                    text = selectedDate.format(DateTimeFormatter.ofPattern("EEEE, MMM d", Locale.getDefault())),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = when {
+                                        selectedRatio >= 1.0f -> "100% Fully Grown & Blooming! 🌳🌸"
+                                        selectedRatio >= 0.75f -> "75% Large Tree Phase 🌲"
+                                        selectedRatio >= 0.50f -> "50% Half-grown Tree 🪴"
+                                        selectedRatio >= 0.25f -> "25% Small Sprout Phase 🌿"
+                                        else -> "0% Skipped Day (No tree planted) 🪨"
+                                    },
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = if (selectedActivity > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                                )
+                            }
+
+                            Text(
+                                text = if (selectedActivity > 0) "💧 ${selectedActivity * 25} Drops" else "0 Drops",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Draws a 3D Isometric / Perspective Land Tile directly on Canvas.
+ */
+private fun DrawScope.drawIsoTile(
+    isoX: Float,
+    isoY: Float,
+    tileWidth: Float,
+    tileHeight: Float,
+    tileColor: Color,
+    isSelected: Boolean
+) {
+    val hW = tileWidth / 2f
+    val hH = tileHeight / 2f
+    val depth = 14f
+
+    // Top Face
+    val topPath = Path().apply {
+        moveTo(isoX, isoY - hH)
+        lineTo(isoX + hW, isoY)
+        lineTo(isoX, isoY + hH)
+        lineTo(isoX - hW, isoY)
+        close()
+    }
+    drawPath(topPath, tileColor)
+    drawPath(
+        path = topPath,
+        color = if (isSelected) Color.White else Color.Black.copy(alpha = 0.15f),
+        style = Stroke(width = if (isSelected) 3f else 1f)
+    )
+
+    // Left Side Face
+    val leftPath = Path().apply {
+        moveTo(isoX - hW, isoY)
+        lineTo(isoX, isoY + hH)
+        lineTo(isoX, isoY + hH + depth)
+        lineTo(isoX - hW, isoY + depth)
+        close()
+    }
+    drawPath(leftPath, tileColor.copy(alpha = 0.80f))
+
+    // Right Side Face
+    val rightPath = Path().apply {
+        moveTo(isoX, isoY + hH)
+        lineTo(isoX + hW, isoY)
+        lineTo(isoX + hW, isoY + depth)
+        lineTo(isoX, isoY + hH + depth)
+        close()
+    }
+    drawPath(rightPath, tileColor.copy(alpha = 0.60f))
+}
+
+/**
+ * Draws a Low-Poly Blocky Voxel 3D Tree directly on Canvas paths based on completionRatio phases:
+ * - 0%: No tree (handled caller side)
+ * - 1% - 25%: Small 3D Sprout 🌱
+ * - 26% - 50%: Half-grown 3D Sapling 🪴
+ * - 51% - 75%: 75% Bigger 3D Tree 🌳
+ * - 76% - 99%: Large 3D Tree 🌲
+ * - 100%: Sacred Blooming 3D Tree 🌳🌸
+ */
+private fun DrawScope.drawLowPoly3DTree(
+    isoX: Float,
+    isoY: Float,
+    scale: Float,
+    completionRatio: Float
+) {
+    if (completionRatio <= 0f) return // 0% tasks done -> NO TREE!
+
+    val growthStage = when {
+        completionRatio >= 1.0f -> 5 // 100% All tasks done
+        completionRatio >= 0.75f -> 4 // 75%-99%
+        completionRatio >= 0.50f -> 3 // 50%-74%
+        completionRatio >= 0.25f -> 2 // 25%-49%
+        else -> 1                      // 1%-24%
+    }
+
+    val trunkW = (5f + growthStage * 1.5f) * scale
+    val trunkH = (8f + growthStage * 3.5f) * scale
+    val baseColor = Color(0xFF78350F) // Low-poly wood
+
+    val trunkTopY = isoY - trunkH
+
+    // 1. Draw 3D Wood Trunk
+    val trunkLeft = Path().apply {
+        moveTo(isoX - trunkW / 2, isoY)
+        lineTo(isoX, isoY + trunkW / 4)
+        lineTo(isoX, trunkTopY + trunkW / 4)
+        lineTo(isoX - trunkW / 2, trunkTopY)
+        close()
+    }
+    drawPath(trunkLeft, baseColor)
+
+    val trunkRight = Path().apply {
+        moveTo(isoX, isoY + trunkW / 4)
+        lineTo(isoX + trunkW / 2, isoY)
+        lineTo(isoX + trunkW / 2, trunkTopY)
+        lineTo(isoX, trunkTopY + trunkW / 4)
+        close()
+    }
+    drawPath(trunkRight, baseColor.copy(alpha = 0.75f))
+
+    // 2. Draw Stacked Low-Poly 3D Foliage Cubes
+    val tierCount = when (growthStage) {
+        5 -> 3 // 100% Full Bloom
+        4 -> 3 // 75% Large Tree
+        3 -> 2 // 50% Half-grown Tree
+        2 -> 1 // 25% Small Tree
+        else -> 1 // <25% Sprout
+    }
+
+    var currentY = trunkTopY + 2f
+    var foliageW = (16f + growthStage * 4.5f) * scale
+    val foliageH = (10f + growthStage * 2.2f) * scale
+
+    val foliageTopColors = listOf(Color(0xFF22C55E), Color(0xFF4ADE80), Color(0xFF86EFAC))
+    val foliageLeftColors = listOf(Color(0xFF16A34A), Color(0xFF22C55E), Color(0xFF4ADE80))
+    val foliageRightColors = listOf(Color(0xFF15803D), Color(0xFF16A34A), Color(0xFF22C55E))
+
+    for (tier in 0 until tierCount) {
+        val fW = foliageW / 2f
+        val fH = foliageH / 2f
+
+        // Top Face
+        val topFoliage = Path().apply {
+            moveTo(isoX, currentY - fH - foliageH)
+            lineTo(isoX + fW, currentY - foliageH)
+            lineTo(isoX, currentY - foliageH + fH)
+            lineTo(isoX - fW, currentY - foliageH)
+            close()
+        }
+        drawPath(topFoliage, foliageTopColors[tier % 3])
+
+        // Left Face
+        val leftFoliage = Path().apply {
+            moveTo(isoX - fW, currentY - foliageH)
+            lineTo(isoX, currentY - foliageH + fH)
+            lineTo(isoX, currentY + fH)
+            lineTo(isoX - fW, currentY)
+            close()
+        }
+        drawPath(leftFoliage, foliageLeftColors[tier % 3])
+
+        // Right Face
+        val rightFoliage = Path().apply {
+            moveTo(isoX, currentY - foliageH + fH)
+            lineTo(isoX + fW, currentY - foliageH)
+            lineTo(isoX + fW, currentY)
+            lineTo(isoX, currentY + fH)
+            close()
+        }
+        drawPath(rightFoliage, foliageRightColors[tier % 3])
+
+        // Blooming Blossoms & Golden Fruits on 100% Full Growth
+        if (growthStage == 5 && tier == tierCount - 1) {
+            val blossomColor = Color(0xFFF472B6)
+            drawCircle(blossomColor, 4f * scale, Offset(isoX - fW * 0.45f, currentY - foliageH))
+            drawCircle(blossomColor, 4f * scale, Offset(isoX + fW * 0.45f, currentY - foliageH * 0.8f))
+            drawCircle(Color(0xFFFBBF24), 3.5f * scale, Offset(isoX, currentY - foliageH * 1.25f))
+        }
+
+        currentY -= foliageH * 0.72f
+        foliageW *= 0.78f
+    }
+}
+
+/**
+ * Draws a Low-Poly Stone / Dry Rock on Canvas for skipped days.
+ */
+private fun DrawScope.drawLowPolyRock(isoX: Float, isoY: Float) {
+    val rockW = 10f
+    val rockH = 8f
+    val rockTop = Path().apply {
+        moveTo(isoX, isoY - rockH)
+        lineTo(isoX + rockW / 2, isoY - rockH / 2)
+        lineTo(isoX, isoY)
+        lineTo(isoX - rockW / 2, isoY - rockH / 2)
+        close()
+    }
+    drawPath(rockTop, Color(0xFFD1D5DB))
+
+    val rockLeft = Path().apply {
+        moveTo(isoX - rockW / 2, isoY - rockH / 2)
+        lineTo(isoX, isoY)
+        lineTo(isoX, isoY + 3f)
+        lineTo(isoX - rockW / 2, isoY - rockH / 2 + 3f)
+        close()
+    }
+    drawPath(rockLeft, Color(0xFF9CA3AF))
+
+    val rockRight = Path().apply {
+        moveTo(isoX, isoY)
+        lineTo(isoX + rockW / 2, isoY - rockH / 2)
+        lineTo(isoX + rockW / 2, isoY - rockH / 2 + 3f)
+        lineTo(isoX, isoY + 3f)
+        close()
+    }
+    drawPath(rockRight, Color(0xFF6B7280))
 }
 
 @Composable
@@ -433,42 +1234,48 @@ private fun MomentumCard(state: TodayUiState) {
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
         label = "daily_progress"
     )
-    GlassSurface(Modifier.fillMaxWidth(), cornerRadius = 28.dp, elevation = 12.dp) {
-        Column(Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+    GlassSurface(
+        modifier = Modifier.fillMaxWidth(),
+        cornerRadius = LiquidGlassTokens.cardRadius,
+        elevation = 4.dp
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Column {
-                    Text("Today’s momentum", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                     Text(
-                        "${state.completedCount} of ${state.habits.size} complete",
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f),
-                        style = MaterialTheme.typography.bodyMedium
+                        text = "Today’s momentum",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "${state.completedCount} of ${state.habits.size} complete",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
-                ) {
-                    Row(
-                        Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
+                SuggestionChip(
+                    onClick = { },
+                    label = {
+                        Text(
+                            text = "${state.xp} XP",
+                            fontWeight = FontWeight.Bold
+                        )
+                    },
+                    icon = {
                         Icon(
                             Icons.Rounded.AutoAwesome,
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(16.dp)
                         )
-                        AnimatedContent(targetState = state.xp, label = "xp_counter") { xp ->
-                            Text(
-                                "$xp XP",
-                                color = MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp
-                            )
-                        }
                     }
-                }
+                )
             }
             LinearProgressIndicator(
                 progress = { progress },
@@ -477,7 +1284,8 @@ private fun MomentumCard(state: TodayUiState) {
                     .height(8.dp)
                     .clip(CircleShape),
                 color = MaterialTheme.colorScheme.primary,
-                trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
+                trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                strokeCap = StrokeCap.Round
             )
         }
     }
@@ -485,19 +1293,29 @@ private fun MomentumCard(state: TodayUiState) {
 
 @Composable
 private fun RecoveryCard() {
-    GlassSurface(
-        Modifier.fillMaxWidth(),
-        tint = MaterialTheme.colorScheme.secondary.copy(alpha = 0.14f),
-        cornerRadius = 24.dp
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer
+        )
     ) {
-        Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("🌱", style = MaterialTheme.typography.headlineSmall)
-            Column(Modifier.padding(start = 12.dp).weight(1f)) {
-                Text("A gentle restart is available", fontWeight = FontWeight.SemiBold)
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("🌱", style = MaterialTheme.typography.headlineMedium)
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    "Small steps still move you forward.",
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                    style = MaterialTheme.typography.bodySmall
+                    text = "A gentle restart is available",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                )
+                Text(
+                    text = "Small steps still move you forward.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f)
                 )
             }
             TextButton(onClick = {}) { Text("View") }
@@ -513,46 +1331,72 @@ private fun HabitCard(
     onArchive: () -> Unit
 ) {
     val haptics = LocalHapticFeedback.current
-    GlassSurface(Modifier.fillMaxWidth().animateContentSize(), cornerRadius = 24.dp) {
+    val checkScale by animateFloatAsState(
+        targetValue = if (completed) 1.12f else 1.0f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMediumLow
+        ),
+        label = "check_scale"
+    )
+
+    GlassSurface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .animateContentSize(),
+        cornerRadius = LiquidGlassTokens.cardRadius,
+        elevation = if (completed) 0.dp else 4.dp,
+        tint = if (completed) MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.8f) else MaterialTheme.colorScheme.surface.copy(alpha = 0.94f)
+    ) {
         Row(
-            Modifier
+            modifier = Modifier
                 .padding(16.dp)
                 .semantics {
                     contentDescription = "${habit.name}, ${if (completed) "completed" else "not completed"}"
                 },
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(habit.emoji, style = MaterialTheme.typography.headlineSmall)
-            Column(Modifier.padding(horizontal = 14.dp).weight(1f)) {
-                Text(habit.name, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+            Text(habit.emoji, style = MaterialTheme.typography.headlineMedium)
+            Column(
+                modifier = Modifier
+                    .padding(horizontal = 14.dp)
+                    .weight(1f)
+            ) {
+                Text(
+                    text = habit.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
                 Spacer(Modifier.height(2.dp))
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
-                ) {
-                    Text(
-                        habit.category,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                AssistChip(
+                    onClick = {},
+                    label = {
+                        Text(
+                            text = habit.category,
+                            style = MaterialTheme.typography.labelSmall
+                        )
+                    },
+                    border = null,
+                    colors = AssistChipDefaults.assistChipColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                        labelColor = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                }
+                )
             }
             Crossfade(targetState = completed, label = "habit_completion") { isComplete ->
                 if (isComplete) {
-                    Surface(
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(36.dp)
+                    FilledIconButton(
+                        onClick = onComplete,
+                        modifier = Modifier.graphicsLayer {
+                            scaleX = checkScale
+                            scaleY = checkScale
+                        },
+                        colors = IconButtonDefaults.filledIconButtonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        )
                     ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                Icons.Rounded.Check,
-                                contentDescription = "Completed",
-                                tint = MaterialTheme.colorScheme.onPrimary,
-                                modifier = Modifier.size(22.dp)
-                            )
-                        }
+                        Icon(Icons.Rounded.Check, contentDescription = "Completed")
                     }
                 } else {
                     IconButton(
@@ -564,20 +1408,11 @@ private fun HabitCard(
                             contentDescription = "Complete ${habit.name}"
                         }
                     ) {
-                        Surface(
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
-                            modifier = Modifier.size(36.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    Icons.Rounded.Check,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                        }
+                        Icon(
+                            Icons.Rounded.Check,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
                     }
                 }
             }
@@ -585,7 +1420,7 @@ private fun HabitCard(
                 Icon(
                     Icons.Rounded.DeleteOutline,
                     contentDescription = "Archive ${habit.name}",
-                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
@@ -593,87 +1428,475 @@ private fun HabitCard(
 }
 
 @Composable
-private fun ProgressScreen(state: TodayUiState, padding: PaddingValues) {
-    LazyColumn(
-        Modifier
-            .fillMaxSize()
-            .padding(padding)
-            .statusBarsPadding(),
-        contentPadding = PaddingValues(20.dp, 20.dp, 20.dp, 110.dp),
+private fun TaskSection(
+    tasks: List<TaskEntity>,
+    viewModel: RoutineViewModel,
+    onOpenTask: () -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text(
+                    text = "Today’s tasks",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = "${tasks.count { !it.completed }} remaining · ${tasks.count { it.completed }} completed",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            TextButton(onClick = onOpenTask) {
+                Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(4.dp))
+                Text("Add task")
+            }
+        }
+        if (tasks.isEmpty()) {
+            GlassSurface(
+                modifier = Modifier.fillMaxWidth().clickable(onClick = onOpenTask),
+                cornerRadius = LiquidGlassTokens.cardRadius,
+                elevation = 0.dp
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        text = "No tasks yet",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Text(
+                        text = "Capture the next useful step, not the whole semester.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+        } else {
+            tasks.take(4).forEach { task ->
+                TaskCard(
+                    task = task,
+                    onComplete = { viewModel.completeTask(task.id) },
+                    onArchive = { viewModel.archiveTask(task.id) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TaskCard(
+    task: TaskEntity,
+    onComplete: () -> Unit,
+    onArchive: () -> Unit
+) {
+    val haptics = LocalHapticFeedback.current
+    GlassSurface(
+        modifier = Modifier.fillMaxWidth(),
+        cornerRadius = LiquidGlassTokens.cardRadius,
+        elevation = if (task.completed) 0.dp else 4.dp,
+        tint = if (task.completed) MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.8f) else MaterialTheme.colorScheme.surface.copy(alpha = 0.94f)
+    ) {
+        Row(
+            modifier = Modifier.padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(
+                onClick = {
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    onComplete()
+                }
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Check,
+                    contentDescription = null,
+                    tint = if (task.completed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = task.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = if (task.completed) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
+                )
+                if (task.description.isNotBlank()) {
+                    Text(
+                        text = task.description,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            IconButton(onClick = onArchive) {
+                Icon(Icons.Rounded.DeleteOutline, contentDescription = "Archive task")
+            }
+        }
+    }
+}
+
+@Composable
+private fun AllTasksScreen(
+    tasks: List<TaskEntity>,
+    viewModel: RoutineViewModel,
+    onOpenTask: () -> Unit
+) {
+    AdaptiveLazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text("All tasks", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                    Text(
+                        "${tasks.count { !it.completed }} open · ${tasks.count { it.completed }} complete",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                FilledIconButton(onClick = onOpenTask) {
+                    Icon(Icons.Rounded.Add, contentDescription = "Add task")
+                }
+            }
+        }
+        if (tasks.isEmpty()) {
+            item {
+                GlassSurface(
+                    modifier = Modifier.fillMaxWidth(),
+                    cornerRadius = LiquidGlassTokens.cardRadius,
+                    elevation = 0.dp
+                ) {
+                    Column(Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("Your task list is clear", style = MaterialTheme.typography.titleMedium)
+                        Text("Add the next meaningful action when you are ready.")
+                    }
+                }
+            }
+        } else {
+            items(tasks, key = { it.id }) { task ->
+                TaskCard(
+                    task = task,
+                    onComplete = { viewModel.completeTask(task.id) },
+                    onArchive = { viewModel.archiveTask(task.id) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PlannerScreen(tasks: List<TaskEntity>) {
+    val today = LocalDate.now()
+    val plannerTasks = remember(tasks, today) {
+        tasks.filterNot { it.completed }.map { task ->
+            PlannableTask(
+                id = task.id,
+                title = task.title,
+                estimatedMinutes = task.estimatedMinutes?.coerceAtLeast(5) ?: 25,
+                category = task.category,
+                priority = task.priority,
+                dueAt = task.dueAt?.let {
+                    LocalDateTime.ofInstant(
+                        java.time.Instant.ofEpochMilli(it),
+                        java.time.ZoneId.systemDefault()
+                    )
+                },
+                energy = task.energy.coerceIn(0, 2)
+            )
+        }
+    }
+    val result = remember(plannerTasks, today) {
+        PlannerEngine.plan(
+            PlannerRequest(
+                date = today,
+                workingStart = LocalTime.of(8, 30),
+                workingEnd = LocalTime.of(19, 0),
+                existingBlocks = listOf(
+                    ExistingTimeBlock(
+                        start = LocalDateTime.of(today, LocalTime.of(10, 0)),
+                        end = LocalDateTime.of(today, LocalTime.of(10, 45)),
+                        label = "Team Sync"
+                    ),
+                    ExistingTimeBlock(
+                        start = LocalDateTime.of(today, LocalTime.of(14, 0)),
+                        end = LocalDateTime.of(today, LocalTime.of(15, 30)),
+                        label = "Focus Block"
+                    )
+                ),
+                tasks = plannerTasks
+            )
+        )
+    }
+
+    AdaptiveLazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         item {
-            Text("Progress", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+            Column {
+                Text("Smart Day Planner", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                Text(
+                    "Calculates a realistic timeline around your existing calendar blocks.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
+        item { PlannerSummaryCard(result) }
+        if (result.scheduled.isNotEmpty()) {
+            item {
+                Text("Suggested timeline", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+            }
+            items(result.scheduled, key = { it.task.id }) { block ->
+                PlannerBlockCard(block.start, block.end, block.task.title, block.task.category)
+            }
+        }
+    }
+}
+
+@Composable
+private fun PlannerSummaryCard(result: PlannerResult) {
+    val percentage = (result.workloadRatio * 100).toInt().coerceAtMost(100)
+    GlassSurface(
+        modifier = Modifier.fillMaxWidth(),
+        cornerRadius = LiquidGlassTokens.cardRadius,
+        elevation = 4.dp,
+        tint = if (result.isOverloaded) MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.8f) else MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.8f)
+    ) {
+        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(
+                    if (result.isOverloaded) "Your day may be too full" else "A realistic starting point",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text("$percentage%", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+            }
+            LinearProgressIndicator(
+                progress = { result.workloadRatio.coerceIn(0f, 1f) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(8.dp)
+                    .clip(CircleShape),
+                color = if (result.isOverloaded) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+            )
+        }
+    }
+}
+
+@Composable
+private fun PlannerBlockCard(start: LocalDateTime, end: LocalDateTime, title: String, category: String) {
+    GlassSurface(
+        modifier = Modifier.fillMaxWidth(),
+        cornerRadius = LiquidGlassTokens.smallRadius,
+        elevation = 0.dp
+    ) {
+        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column {
+                Text(
+                    "${start.format(DateTimeFormatter.ofPattern("hh:mm a"))} - ${end.format(DateTimeFormatter.ofPattern("hh:mm a"))}",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text(category, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProgressScreen(state: TodayUiState) {
+    AdaptiveLazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
         item {
-            GlassSurface(Modifier.fillMaxWidth(), cornerRadius = 28.dp) {
-                Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            ElevatedCard(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.elevatedCardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                )
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Column {
-                            Text("Consistency", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                             Text(
-                                if (state.currentStreak == 0) "Start a new streak today"
+                                text = "Consistency",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = if (state.currentStreak == 0) "Start a new streak today"
                                 else "${state.currentStreak} day streak 🔥",
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                         Text(
-                            "${state.activity.values.sum()} check-ins",
+                            text = "${state.activity.values.sum()} check-ins",
+                            style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.primary,
                             fontWeight = FontWeight.Bold
                         )
                     }
                     ContributionHeatmap(state.activity)
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("Less", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
-                        Spacer(Modifier.width(4.dp))
-                        repeat(4) { HeatmapLegend(it) }
-                        Spacer(Modifier.width(4.dp))
-                        Text("More", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
-                    }
                 }
             }
         }
-        item {
-            GlassSurface(Modifier.fillMaxWidth(), cornerRadius = 26.dp) {
-                Column(Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("This week", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        item { WeeklyGraphs(state.activity) }
+    }
+}
+
+@Composable
+private fun WeeklyGraphs(activity: Map<LocalDate, Int>) {
+    val today = LocalDate.now()
+    val days = (6 downTo 0).map { today.minusDays(it.toLong()) }
+    val values = days.map { activity[it] ?: 0 }
+    val maxValue = values.maxOrNull()?.coerceAtLeast(1) ?: 1
+    GlassSurface(
+        modifier = Modifier.fillMaxWidth(),
+        cornerRadius = LiquidGlassTokens.cardRadius,
+        elevation = 4.dp
+    ) {
+        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text("Weekly activity", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                     Text(
-                        "${(state.progress * 100).toInt()}% completion rate",
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Text(
-                        "Keep showing up. Consistency grows one day at a time.",
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f),
-                        style = MaterialTheme.typography.bodyMedium
+                        "${values.sum()} check-ins in the last 7 days",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+                Text(
+                    "Peak ${values.maxOrNull() ?: 0}",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            CompletionBarChart(days, values, maxValue)
+            ActivityLineChart(values, maxValue)
+        }
+    }
+}
+
+@Composable
+private fun CompletionBarChart(days: List<LocalDate>, values: List<Int>, maxValue: Int) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        val primaryColor = MaterialTheme.colorScheme.primary
+        Canvas(
+            Modifier
+                .fillMaxWidth()
+                .height(128.dp)
+                .semantics { contentDescription = "Seven day completion bar chart" }
+        ) {
+            val slot = size.width / values.size
+            val barWidth = slot * .52f
+            values.forEachIndexed { index, value ->
+                val barHeight = size.height * value.toFloat() / maxValue
+                val left = index * slot + (slot - barWidth) / 2f
+                drawRoundRect(
+                    color = primaryColor.copy(alpha = .12f),
+                    topLeft = Offset(left, 0f),
+                    size = Size(barWidth, size.height),
+                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(12f, 12f)
+                )
+                drawRoundRect(
+                    color = primaryColor.copy(
+                        alpha = .45f + .55f * value.toFloat() / maxValue
+                    ),
+                    topLeft = Offset(left, size.height - barHeight),
+                    size = Size(barWidth, barHeight),
+                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(12f, 12f)
+                )
             }
         }
-        item {
-            GlassSurface(Modifier.fillMaxWidth(), cornerRadius = 26.dp) {
-                Column(Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Level 1 · Steady starter", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                        Text("${state.xp} / 100 XP", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-                    }
-                    LinearProgressIndicator(
-                        progress = { (state.xp / 100f).coerceIn(0f, 1f) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(8.dp)
-                            .clip(CircleShape),
-                        color = MaterialTheme.colorScheme.primary,
-                        trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
-                    )
-                }
+        Row(Modifier.fillMaxWidth()) {
+            days.forEach { day ->
+                Text(
+                    day.format(DateTimeFormatter.ofPattern("EEE", Locale.getDefault())).take(1),
+                    modifier = Modifier.weight(1f),
+                    textAlign = TextAlign.Center,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
+        }
+    }
+}
+
+@Composable
+private fun ActivityLineChart(values: List<Int>, maxValue: Int) {
+    val secondaryColor = MaterialTheme.colorScheme.secondary
+    val onSurfaceColor = MaterialTheme.colorScheme.onSurface
+    val surfaceColor = MaterialTheme.colorScheme.surface
+
+    Canvas(
+        Modifier
+            .fillMaxWidth()
+            .height(96.dp)
+            .semantics { contentDescription = "Seven day completion trend line chart" }
+    ) {
+        val step = if (values.size == 1) size.width else size.width / (values.size - 1)
+        val points = values.mapIndexed { index, value ->
+            Offset(
+                x = index * step,
+                y = size.height - value.toFloat() / maxValue * size.height
+            )
+        }
+        for (row in 1..3) {
+            val y = size.height * row / 4f
+            drawLine(
+                color = onSurfaceColor.copy(alpha = .08f),
+                start = Offset(0f, y),
+                end = Offset(size.width, y),
+                strokeWidth = 1.dp.toPx()
+            )
+        }
+        if (points.size > 1) {
+            val path = Path().apply {
+                moveTo(points.first().x, points.first().y)
+                points.drop(1).forEach { lineTo(it.x, it.y) }
+            }
+            drawPath(
+                path = path,
+                color = secondaryColor,
+                style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round)
+            )
+        }
+        points.forEach { point ->
+            drawCircle(surfaceColor, 5.dp.toPx(), point)
+            drawCircle(secondaryColor, 3.dp.toPx(), point)
         }
     }
 }
@@ -704,23 +1927,12 @@ private fun ContributionHeatmap(activity: Map<LocalDate, Int>) {
 }
 
 @Composable
-private fun HeatmapLegend(level: Int) {
-    Box(
-        Modifier
-            .padding(horizontal = 2.dp)
-            .size(12.dp)
-            .clip(RoundedCornerShape(3.dp))
-            .background(heatmapColor(level / 3f))
-    )
-}
-
-@Composable
 private fun heatmapColor(intensity: Float): Color {
     val base = MaterialTheme.colorScheme.primary
     return if (intensity <= 0f) {
-        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
+        MaterialTheme.colorScheme.surfaceContainerHighest
     } else {
-        base.copy(alpha = 0.28f + intensity.coerceIn(0f, 1f) * 0.72f)
+        base.copy(alpha = 0.3f + intensity.coerceIn(0f, 1f) * 0.7f)
     }
 }
 
@@ -728,117 +1940,106 @@ private fun heatmapColor(intensity: Float): Color {
 private fun SettingsScreen(
     darkMode: Boolean,
     onThemeToggle: () -> Unit,
-    padding: PaddingValues
+    reducedMotion: Boolean,
+    onReducedMotionChange: (Boolean) -> Unit
 ) {
     Column(
-        Modifier
+        modifier = Modifier
             .fillMaxSize()
-            .padding(padding)
-            .statusBarsPadding()
-            .padding(20.dp),
+            .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Text("Settings", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-        GlassSurface(Modifier.fillMaxWidth(), cornerRadius = 24.dp) {
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(20.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Surface(
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
-                    modifier = Modifier.size(42.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
+        GlassSurface(
+            modifier = Modifier.fillMaxWidth(),
+            cornerRadius = 22.dp,
+            highlighted = true,
+            elevation = 8.dp
+        ) {
+            Column {
+                ListItem(
+                    headlineContent = { Text("Dark Theme") },
+                    supportingContent = {
+                        Text(if (darkMode) "Dark theme enabled" else "Light theme enabled")
+                    },
+                    leadingContent = {
                         Icon(
                             if (darkMode) Icons.Rounded.DarkMode else Icons.Rounded.LightMode,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.primary
                         )
+                    },
+                    trailingContent = {
+                        Switch(
+                            checked = darkMode,
+                            onCheckedChange = { onThemeToggle() }
+                        )
                     }
-                }
-                Column(Modifier.padding(horizontal = 14.dp).weight(1f)) {
-                    Text("Appearance", fontWeight = FontWeight.SemiBold)
-                    Text(
-                        if (darkMode) "Dark frosted glass" else "Light frosted glass",
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f),
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                }
-                GlassToggle(checked = darkMode, onCheckedChange = onThemeToggle)
-            }
-        }
-        GlassSurface(Modifier.fillMaxWidth(), cornerRadius = 24.dp) {
-            Column(Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        Icons.Rounded.NotificationsActive,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(Modifier.width(10.dp))
-                    Text("Gentle Reminders", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                }
-                Text(
-                    "Receive daily inspirational quotes to keep your routine active.",
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f),
-                    style = MaterialTheme.typography.bodyMedium
                 )
             }
         }
-    }
-}
 
-@Composable
-private fun GlassToggle(checked: Boolean, onCheckedChange: () -> Unit) {
-    val trackColor by animateColorAsState(
-        targetValue = if (checked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f),
-        label = "toggle_track"
-    )
-    Box(
-        Modifier
-            .size(width = 54.dp, height = 32.dp)
-            .clip(CircleShape)
-            .background(trackColor)
-            .clickable(onClick = onCheckedChange)
-            .semantics {
-                contentDescription = if (checked) "Switch to light mode" else "Switch to dark mode"
+        GlassSurface(
+            modifier = Modifier.fillMaxWidth(),
+            cornerRadius = 22.dp,
+            highlighted = false,
+            elevation = 0.dp
+        ) {
+            Column {
+                ListItem(
+                    headlineContent = { Text("Gentle Reminders") },
+                    supportingContent = { Text("Daily inspiring quote notifications") },
+                    leadingContent = {
+                        Icon(
+                            Icons.Rounded.NotificationsActive,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                )
+                ListItem(
+                    headlineContent = { Text("Sacred Tree Garden") },
+                    supportingContent = { Text("2.5D & 3D Interactive Forest Gaming Mode") },
+                    leadingContent = {
+                        Icon(
+                            Icons.Rounded.Palette,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.secondary
+                        )
+                    }
+                )
             }
-            .padding(4.dp)
-    ) {
-        Box(
-            Modifier
-                .size(24.dp)
-                .align(if (checked) Alignment.CenterEnd else Alignment.CenterStart)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.surface)
-        )
-    }
-}
+        }
 
-@Composable
-private fun NavigationItem(
-    label: String,
-    icon: ImageVector,
-    selected: Boolean,
-    onClick: () -> Unit
-) {
-    val tint by animateColorAsState(
-        targetValue = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
-        label = "nav_tint"
-    )
-    TextButton(onClick = onClick) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(icon, contentDescription = label, tint = tint)
-            Spacer(Modifier.height(2.dp))
-            Text(
-                label,
-                style = MaterialTheme.typography.labelSmall,
-                color = tint,
-                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
+        GlassSurface(
+            modifier = Modifier.fillMaxWidth(),
+            cornerRadius = 22.dp,
+            highlighted = true,
+            elevation = 8.dp
+        ) {
+            ListItem(
+                headlineContent = { Text("Reduce Motion") },
+                supportingContent = {
+                    Text(
+                        if (reducedMotion) {
+                            "Animations are minimized"
+                        } else {
+                            "Use spring motion and screen transitions"
+                        }
+                    )
+                },
+                leadingContent = {
+                    Icon(
+                        Icons.Rounded.AutoAwesome,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                },
+                trailingContent = {
+                    Switch(
+                        checked = reducedMotion,
+                        onCheckedChange = onReducedMotionChange
+                    )
+                }
             )
         }
     }
@@ -867,18 +2068,7 @@ private val CATEGORY_PRESETS = listOf(
     Pair("Health", "💧")
 )
 
-@Composable
-private fun categoryAccentColor(category: String): Color {
-    return when (category) {
-        "Wellness" -> MaterialTheme.colorScheme.primary
-        "Focus" -> MaterialTheme.colorScheme.secondary
-        "Fitness" -> MaterialTheme.colorScheme.tertiary
-        "Mindful" -> MaterialTheme.colorScheme.primary
-        else -> MaterialTheme.colorScheme.secondary
-    }
-}
-
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
 private fun AddHabitDialog(
     onDismiss: () -> Unit,
@@ -889,39 +2079,20 @@ private fun AddHabitDialog(
     var emoji by remember { mutableStateOf("✨") }
     var reminder by remember { mutableStateOf("") }
 
-    Dialog(onDismissRequest = onDismiss) {
-        GlassSurface(
-            Modifier.fillMaxWidth(),
-            cornerRadius = 32.dp,
-            elevation = 16.dp
-        ) {
-            Column(
-                Modifier.padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("Add New Habit", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                    Surface(
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
-                        modifier = Modifier.size(32.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Text("✨", fontSize = 16.sp)
-                        }
-                    }
-                }
-
-                // Quick Add Presets ("+ to add more")
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "Add New Habit",
+                style = MaterialTheme.typography.headlineSmall
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
-                        "⚡ Quick Add Templates",
+                        text = "Quick add templates",
                         style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.primary
                     )
                     FlowRow(
@@ -929,159 +2100,174 @@ private fun AddHabitDialog(
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         PRESET_HABITS.forEach { preset ->
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
-                                modifier = Modifier.clickable {
+                            SuggestionChip(
+                                onClick = {
                                     onAdd(preset.name, preset.category, preset.emoji, preset.reminderMinutes)
-                                }
-                            ) {
-                                Row(
-                                    Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                ) {
-                                    Text(preset.emoji, fontSize = 14.sp)
-                                    Text("+ ${preset.name}", fontSize = 12.sp, fontWeight = FontWeight.Medium)
-                                }
-                            }
+                                },
+                                label = { Text("${preset.emoji} ${preset.name}") }
+                            )
                         }
                     }
                 }
 
-                // Custom Inputs
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    OutlinedTextField(
-                        value = name,
-                        onValueChange = { name = it },
-                        label = { Text("Habit Name") },
-                        placeholder = { Text("e.g. Read 15 pages") },
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = MaterialTheme.colorScheme.primary,
-                            unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
-                        ),
-                        modifier = Modifier.fillMaxWidth()
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Habit name") },
+                    placeholder = { Text("e.g. Read 15 pages") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "Category & Icon",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-
-                    // Category Selector Chips
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(
-                            "Category & Icon",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                        )
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            CATEGORY_PRESETS.forEach { (catName, catEmoji) ->
-                                val catColor = categoryAccentColor(catName)
-                                val isSelected = category == catName
-                                Surface(
-                                    shape = RoundedCornerShape(12.dp),
-                                    color = if (isSelected) catColor else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f),
-                                    modifier = Modifier.clickable {
-                                        category = catName
-                                        emoji = catEmoji
-                                    }
-                                ) {
-                                    Row(
-                                        Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                    ) {
-                                        Text(catEmoji, fontSize = 14.sp)
-                                        Text(
-                                            catName,
-                                            fontSize = 12.sp,
-                                            color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface,
-                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedTextField(
-                            value = emoji,
-                            onValueChange = { emoji = it.take(2) },
-                            label = { Text("Emoji") },
-                            modifier = Modifier.width(85.dp),
-                            singleLine = true,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
-                            )
-                        )
-                        OutlinedTextField(
-                            value = category,
-                            onValueChange = { category = it },
-                            label = { Text("Category") },
-                            singleLine = true,
-                            modifier = Modifier.weight(1f),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
-                            )
-                        )
-                    }
-
-                    OutlinedTextField(
-                        value = reminder,
-                        onValueChange = { reminder = it.take(5) },
-                        label = { Text("Daily Reminder (HH:mm, optional)") },
-                        placeholder = { Text("08:30") },
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = MaterialTheme.colorScheme.primary,
-                            unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
-                        ),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    TextButton(onClick = onDismiss) {
-                        Text("Cancel", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
-                    }
-                    Spacer(Modifier.width(8.dp))
-                    Button(
-                        onClick = {
-                            val parts = reminder.split(":")
-                            val hour = parts.getOrNull(0)?.toIntOrNull()
-                            val minute = parts.getOrNull(1)?.toIntOrNull()
-                            val minutes = if (
-                                parts.size == 2 &&
-                                hour != null && hour in 0..23 &&
-                                minute != null && minute in 0..59
-                            ) {
-                                hour * 60 + minute
-                            } else {
-                                null
-                            }
-                            onAdd(name, category, emoji, minutes)
-                        },
-                        enabled = name.isNotBlank() && (
-                            reminder.isBlank() ||
-                                reminder.matches(Regex("([01]\\d|2[0-3]):[0-5]\\d"))
-                            ),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary,
-                            contentColor = Color.White
-                        ),
-                        shape = RoundedCornerShape(16.dp)
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Text("Add Habit", fontWeight = FontWeight.Bold)
+                        CATEGORY_PRESETS.forEach { (catName, catEmoji) ->
+                            val selected = category == catName
+                            FilterChip(
+                                selected = selected,
+                                onClick = {
+                                    category = catName
+                                    emoji = catEmoji
+                                },
+                                label = { Text("$catEmoji $catName") },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            )
+                        }
                     }
                 }
+
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = emoji,
+                        onValueChange = { emoji = it.take(2) },
+                        label = { Text("Emoji") },
+                        modifier = Modifier.width(90.dp),
+                        singleLine = true
+                    )
+                    OutlinedTextField(
+                        value = category,
+                        onValueChange = { category = it },
+                        label = { Text("Category") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                OutlinedTextField(
+                    value = reminder,
+                    onValueChange = { reminder = it.take(5) },
+                    label = { Text("Daily reminder (HH:mm, optional)") },
+                    placeholder = { Text("08:30") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val parts = reminder.split(":")
+                    val hour = parts.getOrNull(0)?.toIntOrNull()
+                    val minute = parts.getOrNull(1)?.toIntOrNull()
+                    val minutes = if (
+                        parts.size == 2 &&
+                        hour != null && hour in 0..23 &&
+                        minute != null && minute in 0..59
+                    ) {
+                        hour * 60 + minute
+                    } else {
+                        null
+                    }
+                    onAdd(name, category, emoji, minutes)
+                },
+                enabled = name.isNotBlank() && (
+                    reminder.isBlank() ||
+                        reminder.matches(Regex("([01]\\d|2[0-3]):[0-5]\\d"))
+                    )
+            ) {
+                Text("Add habit")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
             }
         }
-    }
+    )
+}
+
+@Composable
+private fun AddTaskDialog(
+    onDismiss: () -> Unit,
+    onAdd: (String, String, String, Int, Int?, Long?) -> Unit
+) {
+    var title by remember { mutableStateOf("") }
+    var description by remember { mutableStateOf("") }
+    var category by remember { mutableStateOf("Personal") }
+    var estimate by remember { mutableStateOf("25") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Add New Task") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    label = { Text("Task Title") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = description,
+                    onValueChange = { description = it },
+                    label = { Text("Description (Optional)") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = category,
+                        onValueChange = { category = it },
+                        label = { Text("Category") },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true
+                    )
+                    OutlinedTextField(
+                        value = estimate,
+                        onValueChange = { estimate = it.filter { char -> char.isDigit() }.take(3) },
+                        label = { Text("Minutes") },
+                        modifier = Modifier.width(100.dp),
+                        singleLine = true
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    onAdd(
+                        title,
+                        description,
+                        category,
+                        1,
+                        estimate.toIntOrNull() ?: 25,
+                        null
+                    )
+                },
+                enabled = title.isNotBlank()
+            ) { Text("Add task") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+    )
 }

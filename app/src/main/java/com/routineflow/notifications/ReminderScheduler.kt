@@ -40,4 +40,18 @@ object ReminderScheduler {
             pendingIntent
         )
     }
+
+    fun cancel(context: Context, habitId: Long) {
+        val intent = Intent(context, ReminderReceiver::class.java)
+        val pendingIntent = PendingIntent.getBroadcast(
+            context,
+            habitId.toInt(),
+            intent,
+            PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE
+        )
+        if (pendingIntent != null) {
+            context.getSystemService(AlarmManager::class.java).cancel(pendingIntent)
+            pendingIntent.cancel()
+        }
+    }
 }

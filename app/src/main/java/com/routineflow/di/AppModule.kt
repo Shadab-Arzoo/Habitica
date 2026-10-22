@@ -21,4 +21,7 @@ object AppModule {
 
     @Provides
     fun provideDao(database: RoutineDatabase): RoutineDao = database.routineDao()
+
+    @Provides
+    fun provideTaskDao(database: RoutineDatabase): com.routineflow.data.local.TaskDao = database.taskDao()
 }

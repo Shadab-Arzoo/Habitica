@@ -46,3 +46,64 @@ data class RecoveryPlanEntity(
     val createdAt: Long = System.currentTimeMillis(),
     val dismissedAt: Long? = null
 )
+
+@Entity(
+    tableName = "tasks",
+    indices = [
+        androidx.room.Index("dueAt"),
+        androidx.room.Index("completed"),
+        androidx.room.Index("category")
+    ]
+)
+data class TaskEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val title: String,
+    val description: String = "",
+    val dueAt: Long? = null,
+    val priority: Int = 1,
+    val category: String = "General",
+    val estimatedMinutes: Int? = null,
+    val energy: Int = 1,
+    val recurrenceRule: String? = null,
+    val reminderMinutes: Int? = null,
+    val completed: Boolean = false,
+    val archived: Boolean = false,
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis()
+)
+
+@Entity(
+    tableName = "subtasks",
+    foreignKeys = [androidx.room.ForeignKey(
+        entity = TaskEntity::class,
+        parentColumns = ["id"],
+        childColumns = ["taskId"],
+        onDelete = androidx.room.ForeignKey.CASCADE
+    )],
+    indices = [androidx.room.Index("taskId")]
+)
+data class SubtaskEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val taskId: Long,
+    val title: String,
+    val completed: Boolean = false,
+    val position: Int = 0
+)
+
+@Entity(
+    tableName = "task_completions",
+    primaryKeys = ["taskId", "date"],
+    foreignKeys = [androidx.room.ForeignKey(
+        entity = TaskEntity::class,
+        parentColumns = ["id"],
+        childColumns = ["taskId"],
+        onDelete = androidx.room.ForeignKey.CASCADE
+    )],
+    indices = [androidx.room.Index("date")]
+)
+data class TaskCompletionEntity(
+    val taskId: Long,
+    val date: String,
+    val completedAt: Long = System.currentTimeMillis(),
+    val xpAwarded: Int = 10
+)

@@ -4,6 +4,8 @@
     <application
         android:name=".RoutineFlowApplication"
         android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
         android:label="RoutineFlow"
         android:supportsRtl="true"
         android:theme="@style/Theme.RoutineFlow">
@@ -40,7 +42,7 @@
             android:exported="false" />
         <receiver
             android:name=".notifications.ReminderBootReceiver"
-            android:exported="true">
+            android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
             </intent-filter>
