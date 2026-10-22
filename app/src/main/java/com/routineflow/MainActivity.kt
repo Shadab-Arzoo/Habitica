@@ -109,6 +109,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.foundation.border
 import androidx.compose.ui.geometry.Offset
+import kotlinx.coroutines.launch
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -366,35 +367,33 @@ private fun RoutineFlowDock(
     )
     val density = LocalDensity.current
     val haptics = LocalHapticFeedback.current
+    val isDarkMode = isSystemInDarkTheme()
+
     var widthPx by remember { mutableFloatStateOf(0f) }
-    var fingerX by remember { mutableFloatStateOf(0f) }
     var dragging by remember { mutableStateOf(false) }
-    val slotPx = widthPx / labels.size
-    val selectedCenter = slotPx * (selectedTab + 0.5f)
-    val animatedCenter by animateFloatAsState(
-        targetValue = selectedCenter,
-        animationSpec = if (reducedMotion) {
-            androidx.compose.animation.core.snap()
-        } else {
-            spring(stiffness = Spring.StiffnessMediumLow)
-        },
-        label = "dock_indicator"
-    )
-    val indicatorCenter = if (dragging) fingerX else animatedCenter
-    val indicatorScale by animateFloatAsState(
-        targetValue = if (dragging) 1.04f else 1f,
-        animationSpec = if (reducedMotion) {
-            androidx.compose.animation.core.snap()
-        } else {
-            spring(stiffness = Spring.StiffnessMedium)
-        },
-        label = "dock_indicator_scale"
-    )
+    val slotPx = if (labels.isNotEmpty()) widthPx / labels.size else 0f
+
+    // Use Animatable for continuous physics-based tracking, mimicking ClearPDF's DampedDragAnimation
+    val indicatorIndexAnim = remember { androidx.compose.animation.core.Animatable(selectedTab.toFloat()) }
+    val panelOffsetAnim = remember { androidx.compose.animation.core.Animatable(0f) }
+    val pressProgressAnim = remember { androidx.compose.animation.core.Animatable(0f) }
+
+    // Sync external tab changes
+    androidx.compose.runtime.LaunchedEffect(selectedTab) {
+        if (!dragging) {
+            indicatorIndexAnim.animateTo(
+                targetValue = selectedTab.toFloat(),
+                animationSpec = if (reducedMotion) androidx.compose.animation.core.snap() else spring(stiffness = Spring.StiffnessMediumLow)
+            )
+        }
+    }
 
     fun tabFor(x: Float): Int {
         if (slotPx <= 0f) return selectedTab
         return (x / slotPx).toInt().coerceIn(labels.indices)
     }
+
+    val dockScope = androidx.compose.runtime.rememberCoroutineScope()
 
     Box(
         modifier = Modifier
@@ -402,126 +401,158 @@ private fun RoutineFlowDock(
             .navigationBarsPadding()
             .padding(start = 16.dp, end = 16.dp, bottom = 16.dp)
             .height(72.dp)
-            .shadow(
-                elevation = 20.dp,
-                shape = CircleShape,
-                ambientColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
-                spotColor = Color.Black.copy(alpha = 0.25f)
-            )
-            .clip(CircleShape)
-            // Liquid Glass Background
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(
-                        MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
-                        MaterialTheme.colorScheme.surface.copy(alpha = 0.65f)
-                    )
-                )
-            )
-            // Liquid Glass Specular Highlight Border
-            .border(
-                width = 1.dp,
-                brush = Brush.verticalGradient(
-                    0.0f to Color.White.copy(alpha = 0.5f),
-                    0.2f to Color.White.copy(alpha = 0.1f),
-                    0.8f to Color.White.copy(alpha = 0.1f),
-                    1.0f to Color.Black.copy(alpha = 0.3f)
-                ),
-                shape = CircleShape
-            )
-            .onSizeChanged { widthPx = it.width.toFloat() }
-            .pointerInput(slotPx, reducedMotion) {
-                awaitEachGesture {
-                    val down = awaitFirstDown(requireUnconsumed = false)
-                    dragging = true
-                    fingerX = down.position.x.coerceIn(0f, widthPx)
-                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    var released = false
-                    while (!released) {
-                        val event = awaitPointerEvent()
-                        event.changes.forEach { change ->
-                            fingerX = change.position.x.coerceIn(0f, widthPx)
-                            if (!change.pressed) {
-                                released = true
-                            } else {
-                                change.consume()
-                            }
-                        }
-                    }
-                    dragging = false
-                    onTabSelected(tabFor(fingerX))
-                }
-            }
+            .graphicsLayer {
+                val scale = androidx.compose.ui.util.lerp(1f, 1.04f, pressProgressAnim.value)
+                scaleX = scale
+                scaleY = scale
+                translationX = panelOffsetAnim.value
+            },
+        contentAlignment = Alignment.Center
     ) {
-        if (slotPx > 0f) {
-            val indicatorBorder = Brush.verticalGradient(
-                0.0f to Color.White.copy(alpha = 0.7f),
-                0.3f to Color.White.copy(alpha = 0.1f),
-                1.0f to Color.Transparent
-            )
-            val indicatorBg = Brush.verticalGradient(
-                colors = listOf(
-                    MaterialTheme.colorScheme.primary.copy(alpha = 0.25f),
-                    MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
-                )
-            )
+        // Liquid Glass Container Layer
+        GlassSurface(
+            modifier = Modifier.fillMaxSize(),
+            cornerRadius = 36.dp, // Fully rounded capsule
+            elevation = 12.dp,
+            highlighted = true,
+            tint = if (isDarkMode) Color(0xFF1E1E1E).copy(alpha = 0.5f) else Color(0xFFF9F9F9).copy(alpha = 0.6f)
+        ) {
             Box(
                 modifier = Modifier
-                    .width(with(density) { slotPx.toDp() })
-                    .fillMaxHeight()
-                    .graphicsLayer {
-                        translationX = indicatorCenter - slotPx / 2f
-                        scaleX = indicatorScale
-                        scaleY = indicatorScale
-                    }
-                    .padding(6.dp)
-                    .clip(CircleShape)
-                    .background(indicatorBg)
-                    .border(1.5.dp, indicatorBorder, CircleShape)
-            )
-        }
-        Row(Modifier.fillMaxSize()) {
-            labels.forEachIndexed { index, label ->
-                val highlighted = index == tabFor(indicatorCenter)
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight()
-                        .clickable(
-                            interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                            indication = null
-                        ) {
+                    .fillMaxSize()
+                    .onSizeChanged { widthPx = it.width.toFloat() }
+                    .pointerInput(slotPx, reducedMotion) {
+                        awaitEachGesture {
+                            val down = awaitFirstDown(requireUnconsumed = false)
+                            dragging = true
                             haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            onTabSelected(index)
-                        }
-                        .semantics {
-                            contentDescription = "$label tab${if (index == selectedTab) ", selected" else ""}"
-                        }
-                        .padding(vertical = 12.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                        Icon(
-                            imageVector = icons[index],
-                            contentDescription = null,
-                            tint = if (highlighted) {
-                                MaterialTheme.colorScheme.primary
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
+
+                            // Launch press animation
+                            dockScope.launch {
+                                pressProgressAnim.animateTo(1f, spring(stiffness = Spring.StiffnessMedium))
                             }
-                        )
-                        Spacer(Modifier.height(2.dp))
-                        Text(
-                            text = label,
-                            style = MaterialTheme.typography.labelSmall,
-                            fontSize = 10.sp,
-                            fontWeight = if (highlighted) FontWeight.Bold else FontWeight.Medium,
-                            color = if (highlighted) {
-                                MaterialTheme.colorScheme.primary
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
+
+                            var currentX = down.position.x
+                            dockScope.launch {
+                                indicatorIndexAnim.snapTo(currentX / slotPx)
                             }
-                        )
+
+                            var released = false
+                            while (!released) {
+                                val event = awaitPointerEvent()
+                                event.changes.forEach { change ->
+                                    if (change.pressed) {
+                                        currentX = change.position.x
+                                        val rawIndex = currentX / slotPx
+                                        
+                                        // Handle drag bounds and elastic panel offset
+                                        val maxIndex = labels.size - 1f
+                                        val overscroll = when {
+                                            rawIndex < 0f -> rawIndex
+                                            rawIndex > maxIndex -> rawIndex - maxIndex
+                                            else -> 0f
+                                        }
+
+                                        dockScope.launch {
+                                            indicatorIndexAnim.snapTo(rawIndex.coerceIn(0f, maxIndex))
+                                            
+                                            // Apply ClearPDF style dampening/elasticity to the panel
+                                            val maxOverscrollPx = 40f
+                                            val pullFraction = (overscroll * slotPx / widthPx).coerceIn(-1f, 1f)
+                                            val elasticOffset = pullFraction * maxOverscrollPx
+                                            panelOffsetAnim.snapTo(elasticOffset)
+                                        }
+                                        change.consume()
+                                    } else {
+                                        released = true
+                                    }
+                                }
+                            }
+
+                            dragging = false
+                            val finalTab = tabFor(currentX)
+                            onTabSelected(finalTab)
+
+                            // Release animations
+                            dockScope.launch {
+                                launch { pressProgressAnim.animateTo(0f, spring(stiffness = Spring.StiffnessMediumLow)) }
+                                launch { panelOffsetAnim.animateTo(0f, spring(dampingRatio = 0.6f, stiffness = Spring.StiffnessMedium)) }
+                                launch { indicatorIndexAnim.animateTo(finalTab.toFloat(), spring(stiffness = Spring.StiffnessMediumLow)) }
+                            }
+                        }
+                    }
+            ) {
+                // Interactive Highlight / Active Pill
+                if (slotPx > 0f) {
+                    val indicatorCenter = slotPx * (indicatorIndexAnim.value + 0.5f)
+                    val pillWidth = slotPx * 0.85f
+
+                    // Squeeze effect based on drag velocity/movement
+                    val isSqueezed = dragging
+                    val animatedScaleX by animateFloatAsState(if (isSqueezed) 1.15f else 1f, spring(stiffness = Spring.StiffnessMedium))
+                    val animatedScaleY by animateFloatAsState(if (isSqueezed) 0.85f else 1f, spring(stiffness = Spring.StiffnessMedium))
+
+                    Box(
+                        modifier = Modifier
+                            .width(with(density) { pillWidth.toDp() })
+                            .fillMaxHeight()
+                            .graphicsLayer {
+                                translationX = indicatorCenter - (pillWidth / 2f)
+                                scaleX = animatedScaleX
+                                scaleY = animatedScaleY
+                            }
+                            .padding(vertical = 8.dp)
+                            .clip(RoundedCornerShape(36.dp))
+                            .background(
+                                Brush.verticalGradient(
+                                    colors = listOf(
+                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.35f),
+                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                                    )
+                                )
+                            )
+                            .border(
+                                1.dp,
+                                Brush.verticalGradient(
+                                    0f to Color.White.copy(alpha = 0.4f),
+                                    1f to Color.White.copy(alpha = 0.05f)
+                                ),
+                                RoundedCornerShape(36.dp)
+                            )
+                    )
+                }
+
+                Row(Modifier.fillMaxSize()) {
+                    labels.forEachIndexed { index, label ->
+                        val targetIndex = if (dragging) indicatorIndexAnim.value.toInt().coerceIn(labels.indices) else selectedTab
+                        val highlighted = index == targetIndex
+
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .semantics {
+                                    contentDescription = "$label tab${if (index == selectedTab) ", selected" else ""}"
+                                }
+                                .padding(vertical = 12.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                                Icon(
+                                    imageVector = icons[index],
+                                    contentDescription = null,
+                                    tint = if (highlighted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(Modifier.height(2.dp))
+                                Text(
+                                    text = label,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontSize = 10.sp,
+                                    fontWeight = if (highlighted) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (highlighted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
                     }
                 }
             }
