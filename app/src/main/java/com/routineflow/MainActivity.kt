@@ -106,6 +106,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.foundation.border
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
@@ -232,19 +234,45 @@ private fun RoutineFlowApp(
                 enter = fadeIn() + expandVertically(),
                 exit = fadeOut() + shrinkVertically()
             ) {
-                FloatingActionButton(
-                    onClick = {
-                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                        showAddTask = true
-                    },
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.semantics { contentDescription = "Add a new habit" }
+                Box(
+                    modifier = Modifier
+                        .padding(bottom = 8.dp)
+                        .size(56.dp)
+                        .shadow(
+                            elevation = 12.dp,
+                            shape = CircleShape,
+                            ambientColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f),
+                            spotColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
+                        )
+                        .clip(CircleShape)
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(
+                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.85f),
+                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.55f)
+                                )
+                            )
+                        )
+                        .border(
+                            width = 1.dp,
+                            brush = Brush.verticalGradient(
+                                0.0f to Color.White.copy(alpha = 0.6f),
+                                0.2f to Color.White.copy(alpha = 0.1f),
+                                1.0f to Color.Black.copy(alpha = 0.2f)
+                            ),
+                            shape = CircleShape
+                        )
+                        .clickable {
+                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            showAddTask = true
+                        }
+                        .semantics { contentDescription = "Add a new habit" },
+                    contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         Icons.Rounded.Add,
                         contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimary,
                         modifier = Modifier.size(28.dp)
                     )
                 }
@@ -368,93 +396,132 @@ private fun RoutineFlowDock(
         return (x / slotPx).toInt().coerceIn(labels.indices)
     }
 
-    NavigationBar(
-        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
-        tonalElevation = 0.dp,
-        modifier = Modifier.navigationBarsPadding()
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(76.dp)
-                .onSizeChanged { widthPx = it.width.toFloat() }
-                .pointerInput(slotPx, reducedMotion) {
-                    awaitEachGesture {
-                        val down = awaitFirstDown(requireUnconsumed = false)
-                        dragging = true
-                        fingerX = down.position.x.coerceIn(0f, widthPx)
-                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        var released = false
-                        while (!released) {
-                            val event = awaitPointerEvent()
-                            event.changes.forEach { change ->
-                                fingerX = change.position.x.coerceIn(0f, widthPx)
-                                if (!change.pressed) {
-                                    released = true
-                                } else {
-                                    change.consume()
-                                }
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .navigationBarsPadding()
+            .padding(start = 16.dp, end = 16.dp, bottom = 16.dp)
+            .height(72.dp)
+            .shadow(
+                elevation = 20.dp,
+                shape = CircleShape,
+                ambientColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
+                spotColor = Color.Black.copy(alpha = 0.25f)
+            )
+            .clip(CircleShape)
+            // Liquid Glass Background
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+                        MaterialTheme.colorScheme.surface.copy(alpha = 0.65f)
+                    )
+                )
+            )
+            // Liquid Glass Specular Highlight Border
+            .border(
+                width = 1.dp,
+                brush = Brush.verticalGradient(
+                    0.0f to Color.White.copy(alpha = 0.5f),
+                    0.2f to Color.White.copy(alpha = 0.1f),
+                    0.8f to Color.White.copy(alpha = 0.1f),
+                    1.0f to Color.Black.copy(alpha = 0.3f)
+                ),
+                shape = CircleShape
+            )
+            .onSizeChanged { widthPx = it.width.toFloat() }
+            .pointerInput(slotPx, reducedMotion) {
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    dragging = true
+                    fingerX = down.position.x.coerceIn(0f, widthPx)
+                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    var released = false
+                    while (!released) {
+                        val event = awaitPointerEvent()
+                        event.changes.forEach { change ->
+                            fingerX = change.position.x.coerceIn(0f, widthPx)
+                            if (!change.pressed) {
+                                released = true
+                            } else {
+                                change.consume()
                             }
                         }
-                        dragging = false
-                        onTabSelected(tabFor(fingerX))
                     }
+                    dragging = false
+                    onTabSelected(tabFor(fingerX))
                 }
-        ) {
-            if (slotPx > 0f) {
+            }
+    ) {
+        if (slotPx > 0f) {
+            val indicatorBorder = Brush.verticalGradient(
+                0.0f to Color.White.copy(alpha = 0.7f),
+                0.3f to Color.White.copy(alpha = 0.1f),
+                1.0f to Color.Transparent
+            )
+            val indicatorBg = Brush.verticalGradient(
+                colors = listOf(
+                    MaterialTheme.colorScheme.primary.copy(alpha = 0.25f),
+                    MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
+                )
+            )
+            Box(
+                modifier = Modifier
+                    .width(with(density) { slotPx.toDp() })
+                    .fillMaxHeight()
+                    .graphicsLayer {
+                        translationX = indicatorCenter - slotPx / 2f
+                        scaleX = indicatorScale
+                        scaleY = indicatorScale
+                    }
+                    .padding(6.dp)
+                    .clip(CircleShape)
+                    .background(indicatorBg)
+                    .border(1.5.dp, indicatorBorder, CircleShape)
+            )
+        }
+        Row(Modifier.fillMaxSize()) {
+            labels.forEachIndexed { index, label ->
+                val highlighted = index == tabFor(indicatorCenter)
                 Box(
                     modifier = Modifier
-                        .width(with(density) { slotPx.toDp() })
+                        .weight(1f)
                         .fillMaxHeight()
-                        .graphicsLayer {
-                            translationX = indicatorCenter - slotPx / 2f
-                            scaleX = indicatorScale
-                            scaleY = indicatorScale
+                        .clickable(
+                            interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onTabSelected(index)
                         }
-                        .padding(horizontal = 4.dp, vertical = 6.dp)
-                        .clip(RoundedCornerShape(LiquidGlassTokens.dockRadius))
-                        .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.9f))
-                )
-            }
-            Row(Modifier.fillMaxSize()) {
-                labels.forEachIndexed { index, label ->
-                    val highlighted = index == tabFor(indicatorCenter)
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
-                            .clickable {
-                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                onTabSelected(index)
-                            }
-                            .semantics {
-                                contentDescription = "$label tab${if (index == selectedTab) ", selected" else ""}"
-                            }
-                            .padding(vertical = 9.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(
-                                imageVector = icons[index],
-                                contentDescription = null,
-                                tint = if (highlighted) {
-                                    MaterialTheme.colorScheme.onPrimaryContainer
-                                } else {
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                                }
-                            )
-                            Spacer(Modifier.height(2.dp))
-                            Text(
-                                text = label,
-                                style = MaterialTheme.typography.labelSmall,
-                                fontSize = 10.sp,
-                                color = if (highlighted) {
-                                    MaterialTheme.colorScheme.onPrimaryContainer
-                                } else {
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                                }
-                            )
+                        .semantics {
+                            contentDescription = "$label tab${if (index == selectedTab) ", selected" else ""}"
                         }
+                        .padding(vertical = 12.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                        Icon(
+                            imageVector = icons[index],
+                            contentDescription = null,
+                            tint = if (highlighted) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            }
+                        )
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            text = label,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontSize = 10.sp,
+                            fontWeight = if (highlighted) FontWeight.Bold else FontWeight.Medium,
+                            color = if (highlighted) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            }
+                        )
                     }
                 }
             }
@@ -774,6 +841,7 @@ private fun GardenScreen(state: TodayUiState) {
     var is3DMode by remember { mutableStateOf(false) }
     var tiltAngle by remember { mutableFloatStateOf(0.45f) }
     var selectedDayIndex by remember { mutableIntStateOf(0) }
+    var testWaterBoost by remember { mutableIntStateOf(0) }
 
     val today = LocalDate.now()
     val pastDays = remember(today) { (27 downTo 0).map { today.minusDays(it.toLong()) } }
@@ -979,47 +1047,64 @@ private fun GardenScreen(state: TodayUiState) {
                         }
                     }
 
-                    // Selected Day Tree Summary Card
+                    // Selected Day Tree Summary & Testing Controls
                     val selectedDate = pastDays.getOrNull(selectedDayIndex) ?: today
-                    val selectedActivity = state.activity[selectedDate] ?: 0
+                    val selectedActivity = (state.activity[selectedDate] ?: 0) + testWaterBoost
                     val selectedRatio = (selectedActivity / 4f).coerceIn(0f, 1f)
 
                     OutlinedCard(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(16.dp)
                     ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            Column {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column {
+                                    Text(
+                                        text = selectedDate.format(DateTimeFormatter.ofPattern("EEEE, MMM d", Locale.getDefault())),
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        text = when {
+                                            selectedRatio >= 1.0f -> "100% Fully Grown & Blooming! 🌳🌸"
+                                            selectedRatio >= 0.75f -> "75% Large Tree Phase 🌲"
+                                            selectedRatio >= 0.50f -> "50% Half-grown Tree 🪴"
+                                            selectedRatio >= 0.25f -> "25% Small Sprout Phase 🌿"
+                                            else -> "0% Skipped Day (No tree planted) 🪨"
+                                        },
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = if (selectedActivity > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                                    )
+                                }
+
                                 Text(
-                                    text = selectedDate.format(DateTimeFormatter.ofPattern("EEEE, MMM d", Locale.getDefault())),
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    text = when {
-                                        selectedRatio >= 1.0f -> "100% Fully Grown & Blooming! 🌳🌸"
-                                        selectedRatio >= 0.75f -> "75% Large Tree Phase 🌲"
-                                        selectedRatio >= 0.50f -> "50% Half-grown Tree 🪴"
-                                        selectedRatio >= 0.25f -> "25% Small Sprout Phase 🌿"
-                                        else -> "0% Skipped Day (No tree planted) 🪨"
-                                    },
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = if (selectedActivity > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                                    text = if (selectedActivity > 0) "💧 ${selectedActivity * 25} Drops" else "0 Drops",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
                                 )
                             }
 
-                            Text(
-                                text = if (selectedActivity > 0) "💧 ${selectedActivity * 25} Drops" else "0 Drops",
-                                style = MaterialTheme.typography.labelLarge,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
-                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Test Growth on Selected Tile:", style = MaterialTheme.typography.labelMedium)
+                                FilledTonalButton(
+                                    onClick = { testWaterBoost = (testWaterBoost + 1) % 5 },
+                                    shape = RoundedCornerShape(10.dp)
+                                ) {
+                                    Text("+1 Growth Stage 🌱")
+                                }
+                            }
                         }
                     }
                 }
