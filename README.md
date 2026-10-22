@@ -68,6 +68,16 @@ screen exposes **Reduce Motion**, which minimizes dock and screen-transition ani
 preserving navigation and accessibility semantics. Primary list screens use centered,
 bounded content on larger windows and full-width content on compact phones.
 
+## ClearPDF dock reference
+
+The dock motion pass was implemented after inspecting ClearPDF's MIT-licensed
+`LiquidBottomTabs`, `LiquidBottomTab`, `DampedDragAnimation`, `GlassMotion`, and
+`InteractiveHighlight` sources. RoutineFlow does not import ClearPDF or its Kyant backdrop
+module; instead, `ClearPdfDockMotion` is a native Compose adaptation of the reference's
+fractional tab tracking, spring-damped release, press scaling, and no-ripple interaction model.
+The ClearPDF repository and its license/notice files remain the authoritative reference for
+that behavior.
+
 ## Implementation roadmap
 
 The current release foundation is implemented and verified through Kotlin compilation and unit tests.

@@ -125,6 +125,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -144,6 +145,7 @@ import com.routineflow.ui.OnboardingScreen
 import com.routineflow.ui.OnboardingViewModel
 import com.routineflow.ui.RoutineViewModel
 import com.routineflow.ui.TodayUiState
+import com.routineflow.ui.components.ClearPdfDockMotion
 import com.routineflow.ui.components.GlassSurface
 import com.routineflow.ui.theme.RoutineFlowTheme
 import com.routineflow.ui.theme.LiquidGlassTokens
@@ -280,7 +282,7 @@ private fun RoutineFlowApp(
             }
         },
         bottomBar = {
-            RoutineFlowDock(
+            RoutineFlowDockClearPdf(
                 selectedTab = selectedTab,
                 reducedMotion = reducedMotion,
                 onTabSelected = {
@@ -434,7 +436,7 @@ private fun RoutineFlowDock(
 
                             var currentX = down.position.x
                             dockScope.launch {
-                                indicatorIndexAnim.snapTo(currentX / slotPx)
+                                indicatorIndexAnim.snapTo((currentX / slotPx) - 0.5f)
                             }
 
                             var released = false
@@ -443,7 +445,7 @@ private fun RoutineFlowDock(
                                 event.changes.forEach { change ->
                                     if (change.pressed) {
                                         currentX = change.position.x
-                                        val rawIndex = currentX / slotPx
+                                        val rawIndex = (currentX / slotPx) - 0.5f
                                         
                                         // Handle drag bounds and elastic panel offset
                                         val maxIndex = labels.size - 1f
@@ -462,7 +464,6 @@ private fun RoutineFlowDock(
                                             val elasticOffset = pullFraction * maxOverscrollPx
                                             panelOffsetAnim.snapTo(elasticOffset)
                                         }
-                                        change.consume()
                                     } else {
                                         released = true
                                     }
@@ -553,6 +554,211 @@ private fun RoutineFlowDock(
                                 )
                             }
                         }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RoutineFlowDockClearPdf(
+    selectedTab: Int,
+    reducedMotion: Boolean,
+    onTabSelected: (Int) -> Unit
+) {
+    val labels = listOf("Today", "Garden", "Progress", "Tasks", "Planner", "Settings")
+    val icons = listOf(
+        Icons.Rounded.Check,
+        Icons.Rounded.LocalFlorist,
+        Icons.Rounded.Insights,
+        Icons.Rounded.Check,
+        Icons.Rounded.AutoAwesome,
+        Icons.Rounded.Settings
+    )
+    val density = LocalDensity.current
+    val haptics = LocalHapticFeedback.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val motion = remember(reducedMotion) {
+        ClearPdfDockMotion(scope, selectedTab, labels.lastIndex, reducedMotion)
+    }
+    var widthPx by remember { mutableFloatStateOf(0f) }
+    var pressed by remember { mutableStateOf(false) }
+    val slotPx = widthPx / labels.size
+    val panelOffset = remember { androidx.compose.animation.core.Animatable(0f) }
+
+    androidx.compose.runtime.LaunchedEffect(selectedTab) {
+        if (!pressed) motion.sync(selectedTab)
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .navigationBarsPadding()
+            .padding(horizontal = 16.dp, vertical = 12.dp)
+            .height(72.dp)
+            .graphicsLayer {
+                scaleX = 1f + motion.pressed * 0.025f
+                scaleY = 1f + motion.pressed * 0.015f
+                translationX = panelOffset.value
+            }
+            .shadow(
+                elevation = 18.dp,
+                shape = CircleShape,
+                ambientColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.22f),
+                spotColor = Color.Black.copy(alpha = 0.18f)
+            )
+            .clip(CircleShape)
+            .background(
+                Brush.verticalGradient(
+                    listOf(
+                        MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
+                        MaterialTheme.colorScheme.surface.copy(alpha = 0.76f)
+                    )
+                )
+            )
+            .border(
+                width = 1.dp,
+                brush = Brush.verticalGradient(
+                    0f to Color.White.copy(alpha = 0.55f),
+                    0.25f to Color.White.copy(alpha = 0.16f),
+                    1f to Color.Black.copy(alpha = 0.16f)
+                ),
+                shape = CircleShape
+            )
+            .onSizeChanged { widthPx = it.width.toFloat() }
+            .pointerInput(slotPx, reducedMotion) {
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    if (slotPx <= 0f) return@awaitEachGesture
+                    pressed = true
+                    val touchedTab = (down.position.x / slotPx)
+                        .let { kotlin.math.round(it).toInt() }
+                        .coerceIn(0, labels.lastIndex)
+                    motion.startAt(touchedTab.toFloat())
+                    motion.press()
+                    var previousX = down.position.x
+                    var moved = false
+                    var released = false
+                    while (!released) {
+                        val event = awaitPointerEvent()
+                        event.changes.forEach { change ->
+                            if (!change.pressed) {
+                                released = true
+                            } else {
+                                val deltaX = change.position.x - previousX
+                                previousX = change.position.x
+                                if (kotlin.math.abs(change.position.x - down.position.x) > 8f) {
+                                    moved = true
+                                    motion.dragBy(deltaX, slotPx)
+                                    change.consume()
+                                }
+                            }
+                        }
+                    }
+                    pressed = false
+                    if (!moved) {
+                        motion.cancelPress()
+                        return@awaitEachGesture
+                    }
+                    val finalTab = motion.release()
+                    scope.launch {
+                        panelOffset.animateTo(
+                            0f,
+                            if (reducedMotion) {
+                                spring(dampingRatio = 1f, stiffness = Spring.StiffnessMedium)
+                            } else {
+                                spring(dampingRatio = 0.6f, stiffness = Spring.StiffnessMedium)
+                            }
+                        )
+                    }
+                    onTabSelected(finalTab)
+                }
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        if (slotPx > 0f) {
+            val indicatorWidth = slotPx * 0.86f
+            Box(
+                modifier = Modifier
+                    .width(with(density) { indicatorWidth.toDp() })
+                    .fillMaxHeight()
+                    .graphicsLayer {
+                        translationX = slotPx * (motion.value + 0.5f) - indicatorWidth / 2f
+                        scaleX = motion.stretchX
+                        scaleY = motion.stretchY
+                    }
+                    .padding(vertical = 7.dp)
+                    .clip(CircleShape)
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.24f),
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
+                            )
+                        )
+                    )
+                    .border(
+                        1.dp,
+                        Brush.verticalGradient(
+                            0f to Color.White.copy(alpha = 0.65f),
+                            1f to Color.Transparent
+                        ),
+                        CircleShape
+                    )
+            )
+        }
+        Row(Modifier.fillMaxSize()) {
+            labels.forEachIndexed { index, label ->
+                val highlighted = if (pressed) {
+                    index == kotlin.math.round(motion.value).toInt().coerceIn(labels.indices)
+                } else {
+                    index == selectedTab
+                }
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .clickable(
+                            interactionSource = null,
+                            indication = null,
+                            role = Role.Tab
+                        ) {
+                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            motion.select(index)
+                            onTabSelected(index)
+                        }
+                        .semantics {
+                            contentDescription = "$label tab${if (index == selectedTab) ", selected" else ""}"
+                        }
+                        .padding(vertical = 10.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        Icon(
+                            imageVector = icons[index],
+                            contentDescription = null,
+                            tint = if (highlighted) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Text(
+                            text = label,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontSize = 10.sp,
+                            fontWeight = if (highlighted) FontWeight.Bold else FontWeight.Medium,
+                            color = if (highlighted) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            }
+                        )
                     }
                 }
             }
