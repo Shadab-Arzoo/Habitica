@@ -15,7 +15,7 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
-import androidx.compose.animation.slideInHorizontally
+ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
@@ -239,6 +239,7 @@ private fun RoutineFlowApp(
             ) {
                 Box(
                     modifier = Modifier
+                        .offset(y = (-44).dp)
                         .padding(bottom = 8.dp)
                         .size(56.dp)
                         .shadow(
@@ -281,54 +282,58 @@ private fun RoutineFlowApp(
                 }
             }
         },
-        bottomBar = {
+    ) { padding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(top = padding.calculateTopPadding())
+        ) {
+            AnimatedContent(
+                targetState = selectedTab,
+                transitionSpec = {
+                    if (reducedMotion) {
+                        fadeIn() togetherWith fadeOut()
+                    } else if (targetState > initialState) {
+                        (slideInHorizontally { it / 5 } + fadeIn()) togetherWith
+                            (slideOutHorizontally { -it / 5 } + fadeOut())
+                    } else {
+                        (slideInHorizontally { -it / 5 } + fadeIn()) togetherWith
+                            (slideOutHorizontally { it / 5 } + fadeOut())
+                    }
+                },
+                label = "screen_transition",
+                modifier = Modifier.fillMaxSize()
+            ) { tab ->
+                when (tab) {
+                    0 -> TodayScreen(
+                        state = state,
+                        tasks = tasks,
+                        viewModel = viewModel,
+                        onOpenAdd = { showAdd = true },
+                        onOpenTask = { showAddTask = true }
+                    )
+                    1 -> GardenScreen(state)
+                    2 -> ProgressScreen(state)
+                    3 -> AllTasksScreen(tasks, viewModel, onOpenTask = { showAddTask = true })
+                    4 -> PlannerScreen(tasks)
+                    else -> SettingsScreen(
+                        darkMode = darkMode,
+                        onThemeToggle = onThemeToggle,
+                        reducedMotion = reducedMotion,
+                        onReducedMotionChange = onReducedMotionChange
+                    )
+                }
+            }
+
             RoutineFlowDockClearPdf(
                 selectedTab = selectedTab,
                 reducedMotion = reducedMotion,
                 onTabSelected = {
                     haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                     selectedTab = it
-                }
+                },
+                modifier = Modifier.align(Alignment.BottomCenter)
             )
-        }
-    ) { padding ->
-        AnimatedContent(
-            targetState = selectedTab,
-            transitionSpec = {
-                if (reducedMotion) {
-                    fadeIn() togetherWith fadeOut()
-                } else if (targetState > initialState) {
-                    (slideInHorizontally { it / 5 } + fadeIn()) togetherWith
-                        (slideOutHorizontally { -it / 5 } + fadeOut())
-                } else {
-                    (slideInHorizontally { -it / 5 } + fadeIn()) togetherWith
-                        (slideOutHorizontally { it / 5 } + fadeOut())
-                }
-            },
-            label = "screen_transition",
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-        ) { tab ->
-            when (tab) {
-                0 -> TodayScreen(
-                    state = state,
-                    tasks = tasks,
-                    viewModel = viewModel,
-                    onOpenAdd = { showAdd = true },
-                    onOpenTask = { showAddTask = true }
-                )
-                1 -> GardenScreen(state)
-                2 -> ProgressScreen(state)
-                3 -> AllTasksScreen(tasks, viewModel, onOpenTask = { showAddTask = true })
-                4 -> PlannerScreen(tasks)
-                else -> SettingsScreen(
-                    darkMode = darkMode,
-                    onThemeToggle = onThemeToggle,
-                    reducedMotion = reducedMotion,
-                    onReducedMotionChange = onReducedMotionChange
-                )
-            }
         }
     }
 
@@ -485,7 +490,7 @@ private fun RoutineFlowDock(
             ) {
                 // Interactive Highlight / Active Pill
                 if (slotPx > 0f) {
-                    val indicatorCenter = slotPx * (indicatorIndexAnim.value + 0.5f)
+                    val indicatorCenter = slotPx * (indicatorIndexAnim.value)
                     val pillWidth = slotPx * 0.85f
 
                     // Squeeze effect based on drag velocity/movement
@@ -565,7 +570,8 @@ private fun RoutineFlowDock(
 private fun RoutineFlowDockClearPdf(
     selectedTab: Int,
     reducedMotion: Boolean,
-    onTabSelected: (Int) -> Unit
+    onTabSelected: (Int) -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val labels = listOf("Today", "Garden", "Progress", "Tasks", "Planner", "Settings")
     val icons = listOf(
@@ -592,173 +598,182 @@ private fun RoutineFlowDockClearPdf(
     }
 
     Box(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .navigationBarsPadding()
-            .padding(horizontal = 16.dp, vertical = 12.dp)
-            .height(72.dp)
-            .graphicsLayer {
-                scaleX = 1f + motion.pressed * 0.025f
-                scaleY = 1f + motion.pressed * 0.015f
-                translationX = panelOffset.value
-            }
-            .shadow(
-                elevation = 18.dp,
-                shape = CircleShape,
-                ambientColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.22f),
-                spotColor = Color.Black.copy(alpha = 0.18f)
-            )
-            .clip(CircleShape)
-            .background(
-                Brush.verticalGradient(
-                    listOf(
-                        MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
-                        MaterialTheme.colorScheme.surface.copy(alpha = 0.76f)
+            .height(92.dp),
+        contentAlignment = Alignment.BottomCenter
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .height(72.dp)
+                .graphicsLayer {
+                    scaleX = 1f + motion.pressed * 0.025f
+                    scaleY = 1f + motion.pressed * 0.015f
+                    translationX = panelOffset.value
+                }
+                .shadow(
+                    elevation = 10.dp,
+                    shape = CircleShape,
+                    ambientColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
+                    spotColor = Color.Black.copy(alpha = 0.12f)
+                )
+                .clip(CircleShape)
+                .background(
+                    Brush.linearGradient(
+                        listOf(
+                            Color.White.copy(alpha = 0.32f),
+                            MaterialTheme.colorScheme.surface.copy(alpha = 0.52f),
+                            MaterialTheme.colorScheme.surface.copy(alpha = 0.38f),
+                            Color.White.copy(alpha = 0.20f)
+                        )
                     )
                 )
-            )
-            .border(
-                width = 1.dp,
-                brush = Brush.verticalGradient(
-                    0f to Color.White.copy(alpha = 0.55f),
-                    0.25f to Color.White.copy(alpha = 0.16f),
-                    1f to Color.Black.copy(alpha = 0.16f)
-                ),
-                shape = CircleShape
-            )
-            .onSizeChanged { widthPx = it.width.toFloat() }
-            .pointerInput(slotPx, reducedMotion) {
-                awaitEachGesture {
-                    val down = awaitFirstDown(requireUnconsumed = false)
-                    if (slotPx <= 0f) return@awaitEachGesture
-                    pressed = true
-                    val touchedTab = (down.position.x / slotPx)
-                        .let { kotlin.math.round(it).toInt() }
-                        .coerceIn(0, labels.lastIndex)
-                    motion.startAt(touchedTab.toFloat())
-                    motion.press()
-                    var previousX = down.position.x
-                    var moved = false
-                    var released = false
-                    while (!released) {
-                        val event = awaitPointerEvent()
-                        event.changes.forEach { change ->
-                            if (!change.pressed) {
-                                released = true
-                            } else {
-                                val deltaX = change.position.x - previousX
-                                previousX = change.position.x
-                                if (kotlin.math.abs(change.position.x - down.position.x) > 8f) {
-                                    moved = true
-                                    motion.dragBy(deltaX, slotPx)
-                                    change.consume()
+                .border(
+                    width = 1.dp,
+                    brush = Brush.verticalGradient(
+                        0f to Color.White.copy(alpha = 0.72f),
+                        0.28f to Color.White.copy(alpha = 0.30f),
+                        1f to MaterialTheme.colorScheme.onSurface.copy(alpha = 0.18f)
+                    ),
+                    shape = CircleShape
+                )
+                .onSizeChanged { widthPx = it.width.toFloat() }
+                .pointerInput(slotPx, reducedMotion) {
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        if (slotPx <= 0f) return@awaitEachGesture
+                        pressed = true
+                        val touchedTab = (down.position.x / slotPx)
+                            .let { kotlin.math.round(it).toInt() }
+                            .coerceIn(0, labels.lastIndex)
+                        motion.startAt(touchedTab.toFloat())
+                        motion.press()
+                        var previousX = down.position.x
+                        var moved = false
+                        var released = false
+                        while (!released) {
+                            val event = awaitPointerEvent()
+                            event.changes.forEach { change ->
+                                if (!change.pressed) {
+                                    released = true
+                                } else {
+                                    val deltaX = change.position.x - previousX
+                                    previousX = change.position.x
+                                    if (kotlin.math.abs(change.position.x - down.position.x) > 8f) {
+                                        moved = true
+                                        motion.dragBy(deltaX, slotPx)
+                                        change.consume()
+                                    }
                                 }
                             }
                         }
-                    }
-                    pressed = false
-                    if (!moved) {
-                        motion.cancelPress()
-                        return@awaitEachGesture
-                    }
-                    val finalTab = motion.release()
-                    scope.launch {
-                        panelOffset.animateTo(
-                            0f,
-                            if (reducedMotion) {
-                                spring(dampingRatio = 1f, stiffness = Spring.StiffnessMedium)
-                            } else {
-                                spring(dampingRatio = 0.6f, stiffness = Spring.StiffnessMedium)
-                            }
-                        )
-                    }
-                    onTabSelected(finalTab)
-                }
-            },
-        contentAlignment = Alignment.Center
-    ) {
-        if (slotPx > 0f) {
-            val indicatorWidth = slotPx * 0.86f
-            Box(
-                modifier = Modifier
-                    .width(with(density) { indicatorWidth.toDp() })
-                    .fillMaxHeight()
-                    .graphicsLayer {
-                        translationX = slotPx * (motion.value + 0.5f) - indicatorWidth / 2f
-                        scaleX = motion.stretchX
-                        scaleY = motion.stretchY
-                    }
-                    .padding(vertical = 7.dp)
-                    .clip(CircleShape)
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(
-                                MaterialTheme.colorScheme.primary.copy(alpha = 0.24f),
-                                MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
+                        pressed = false
+                        if (!moved) {
+                            motion.cancelPress()
+                            return@awaitEachGesture
+                        }
+                        val finalTab = motion.release()
+                        scope.launch {
+                            panelOffset.animateTo(
+                                0f,
+                                if (reducedMotion) {
+                                    spring(dampingRatio = 1f, stiffness = Spring.StiffnessMedium)
+                                } else {
+                                    spring(dampingRatio = 0.6f, stiffness = Spring.StiffnessMedium)
+                                }
                             )
-                        )
-                    )
-                    .border(
-                        1.dp,
-                        Brush.verticalGradient(
-                            0f to Color.White.copy(alpha = 0.65f),
-                            1f to Color.Transparent
-                        ),
-                        CircleShape
-                    )
-            )
-        }
-        Row(Modifier.fillMaxSize()) {
-            labels.forEachIndexed { index, label ->
-                val highlighted = if (pressed) {
-                    index == kotlin.math.round(motion.value).toInt().coerceIn(labels.indices)
-                } else {
-                    index == selectedTab
-                }
+                        }
+                        onTabSelected(finalTab)
+                    }
+                },
+            contentAlignment = Alignment.Center
+        ) {
+            if (slotPx > 0f) {
+                val indicatorWidth = slotPx * 0.86f
                 Box(
                     modifier = Modifier
-                        .weight(1f)
+                        .width(with(density) { indicatorWidth.toDp() })
                         .fillMaxHeight()
-                        .clickable(
-                            interactionSource = null,
-                            indication = null,
-                            role = Role.Tab
-                        ) {
-                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            motion.select(index)
-                            onTabSelected(index)
+                        .graphicsLayer {
+                            translationX = slotPx * (motion.value + 0.5f) - indicatorWidth / 2f
+                            scaleX = motion.stretchX
+                            scaleY = motion.stretchY
                         }
-                        .semantics {
-                            contentDescription = "$label tab${if (index == selectedTab) ", selected" else ""}"
-                        }
-                        .padding(vertical = 10.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(2.dp)
-                    ) {
-                        Icon(
-                            imageVector = icons[index],
-                            contentDescription = null,
-                            tint = if (highlighted) {
-                                MaterialTheme.colorScheme.primary
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            },
-                            modifier = Modifier.size(22.dp)
+                        .padding(vertical = 7.dp)
+                        .clip(CircleShape)
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(
+                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.18f),
+                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.055f)
+                                )
+                            )
                         )
-                        Text(
-                            text = label,
-                            style = MaterialTheme.typography.labelSmall,
-                            fontSize = 10.sp,
-                            fontWeight = if (highlighted) FontWeight.Bold else FontWeight.Medium,
-                            color = if (highlighted) {
-                                MaterialTheme.colorScheme.primary
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
+                        .border(
+                            1.dp,
+                            Brush.verticalGradient(
+                                0f to Color.White.copy(alpha = 0.65f),
+                                1f to Color.Transparent
+                            ),
+                            CircleShape
+                        )
+                )
+            }
+            Row(Modifier.fillMaxSize()) {
+                labels.forEachIndexed { index, label ->
+                    val highlighted = if (pressed) {
+                        index == kotlin.math.round(motion.value).toInt().coerceIn(labels.indices)
+                    } else {
+                        index == selectedTab
+                    }
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .clickable(
+                                interactionSource = null,
+                                indication = null,
+                                role = Role.Tab
+                            ) {
+                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                motion.select(index)
+                                onTabSelected(index)
                             }
-                        )
+                            .semantics {
+                                contentDescription = "$label tab${if (index == selectedTab) ", selected" else ""}"
+                            }
+                            .padding(vertical = 10.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            Icon(
+                                imageVector = icons[index],
+                                contentDescription = null,
+                                tint = if (highlighted) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                },
+                                modifier = Modifier.size(22.dp)
+                            )
+                            Text(
+                                text = label,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontSize = 10.sp,
+                                fontWeight = if (highlighted) FontWeight.Bold else FontWeight.Medium,
+                                color = if (highlighted) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                }
+                            )
+                        }
                     }
                 }
             }
