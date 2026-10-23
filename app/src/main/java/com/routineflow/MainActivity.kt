@@ -106,6 +106,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
 import androidx.compose.foundation.border
 import androidx.compose.ui.geometry.Offset
@@ -124,6 +125,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
@@ -237,13 +239,38 @@ private fun RoutineFlowApp(
                 enter = fadeIn() + expandVertically(),
                 exit = fadeOut() + shrinkVertically()
             ) {
+                var addPressed by remember { mutableStateOf(false) }
+                val addScale by animateFloatAsState(
+                    targetValue = if (addPressed) 0.9f else 1f,
+                    animationSpec = if (reducedMotion) {
+                        androidx.compose.animation.core.snap()
+                    } else {
+                        spring(dampingRatio = 0.58f, stiffness = 720f)
+                    },
+                    label = "add_button_scale"
+                )
+                val addLift by animateFloatAsState(
+                    targetValue = if (addPressed) 2f else 0f,
+                    animationSpec = if (reducedMotion) {
+                        androidx.compose.animation.core.snap()
+                    } else {
+                        spring(dampingRatio = 0.62f, stiffness = 560f)
+                    },
+                    label = "add_button_lift"
+                )
                 Box(
                     modifier = Modifier
-                        .offset(y = (-44).dp)
+                        .offset(y = (-64).dp)
                         .padding(bottom = 8.dp)
                         .size(56.dp)
+                        .graphicsLayer {
+                            scaleX = addScale
+                            scaleY = addScale
+                            translationY = -addLift
+                            rotationZ = if (addPressed) -2f else 0f
+                        }
                         .shadow(
-                            elevation = 12.dp,
+                            elevation = if (addPressed) 18.dp else 12.dp,
                             shape = CircleShape,
                             ambientColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f),
                             spotColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
@@ -257,27 +284,70 @@ private fun RoutineFlowApp(
                                 )
                             )
                         )
+                        .drawWithContent {
+                            drawContent()
+                            drawCircle(
+                                color = Color.White.copy(alpha = if (addPressed) 0.28f else 0.16f),
+                                radius = size.minDimension * 0.34f,
+                                center = androidx.compose.ui.geometry.Offset(
+                                    x = size.width * 0.32f,
+                                    y = size.height * 0.24f
+                                )
+                            )
+                        }
                         .border(
                             width = 1.dp,
                             brush = Brush.verticalGradient(
-                                0.0f to Color.White.copy(alpha = 0.6f),
-                                0.2f to Color.White.copy(alpha = 0.1f),
-                                1.0f to Color.Black.copy(alpha = 0.2f)
+                                0.0f to Color.White.copy(alpha = 0.78f),
+                                0.2f to Color.White.copy(alpha = 0.28f),
+                                1.0f to Color.Black.copy(alpha = 0.24f)
                             ),
                             shape = CircleShape
                         )
-                        .clickable {
-                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                            showAddTask = true
+                        .pointerInput(reducedMotion) {
+                            detectTapGestures(
+                                onPress = {
+                                    addPressed = true
+                                    try {
+                                        awaitRelease()
+                                    } finally {
+                                        addPressed = false
+                                    }
+                                },
+                                onTap = {
+                                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    showAddTask = true
+                                }
+                            )
                         }
-                        .semantics { contentDescription = "Add a new habit" },
+                        .semantics {
+                            role = Role.Button
+                            contentDescription = "Add a new habit"
+                        },
                     contentAlignment = Alignment.Center
                 ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.08f))
+                            .border(
+                                1.dp,
+                                Color.White.copy(alpha = 0.18f),
+                                CircleShape
+                            )
+                    )
                     Icon(
                         Icons.Rounded.Add,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier.size(28.dp)
+                        modifier = Modifier
+                            .size(28.dp)
+                            .graphicsLayer {
+                                scaleX = if (addPressed) 0.88f else 1f
+                                scaleY = if (addPressed) 0.88f else 1f
+                                rotationZ = if (addPressed) -8f else 0f
+                            }
                     )
                 }
             }
@@ -441,7 +511,7 @@ private fun RoutineFlowDock(
 
                             var currentX = down.position.x
                             dockScope.launch {
-                                indicatorIndexAnim.snapTo((currentX / slotPx) - 0.5f)
+                                indicatorIndexAnim.snapTo(currentX / slotPx)
                             }
 
                             var released = false
@@ -450,7 +520,7 @@ private fun RoutineFlowDock(
                                 event.changes.forEach { change ->
                                     if (change.pressed) {
                                         currentX = change.position.x
-                                        val rawIndex = (currentX / slotPx) - 0.5f
+                                        val rawIndex = currentX / slotPx
                                         
                                         // Handle drag bounds and elastic panel offset
                                         val maxIndex = labels.size - 1f
@@ -490,7 +560,7 @@ private fun RoutineFlowDock(
             ) {
                 // Interactive Highlight / Active Pill
                 if (slotPx > 0f) {
-                    val indicatorCenter = slotPx * (indicatorIndexAnim.value)
+                    val indicatorCenter = slotPx * (indicatorIndexAnim.value + 0.5f)
                     val pillWidth = slotPx * 0.85f
 
                     // Squeeze effect based on drag velocity/movement
@@ -624,19 +694,19 @@ private fun RoutineFlowDockClearPdf(
                 .background(
                     Brush.linearGradient(
                         listOf(
-                            Color.White.copy(alpha = 0.32f),
-                            MaterialTheme.colorScheme.surface.copy(alpha = 0.52f),
-                            MaterialTheme.colorScheme.surface.copy(alpha = 0.38f),
-                            Color.White.copy(alpha = 0.20f)
+                            Color.White.copy(alpha = 0.65f),
+                            MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+                            MaterialTheme.colorScheme.surface.copy(alpha = 0.75f),
+                            Color.White.copy(alpha = 0.45f)
                         )
                     )
                 )
                 .border(
                     width = 1.dp,
                     brush = Brush.verticalGradient(
-                        0f to Color.White.copy(alpha = 0.72f),
-                        0.28f to Color.White.copy(alpha = 0.30f),
-                        1f to MaterialTheme.colorScheme.onSurface.copy(alpha = 0.18f)
+                        0f to Color.White.copy(alpha = 0.85f),
+                        0.28f to Color.White.copy(alpha = 0.45f),
+                        1f to MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f)
                     ),
                     shape = CircleShape
                 )
@@ -646,8 +716,7 @@ private fun RoutineFlowDockClearPdf(
                         val down = awaitFirstDown(requireUnconsumed = false)
                         if (slotPx <= 0f) return@awaitEachGesture
                         pressed = true
-                        val touchedTab = (down.position.x / slotPx)
-                            .let { kotlin.math.round(it).toInt() }
+                        val touchedTab = (down.position.x / slotPx - 0.5f).let { kotlin.math.round(it).toInt() }
                             .coerceIn(0, labels.lastIndex)
                         motion.startAt(touchedTab.toFloat())
                         motion.press()
@@ -671,11 +740,10 @@ private fun RoutineFlowDockClearPdf(
                             }
                         }
                         pressed = false
+                        val finalTab = if (!moved) touchedTab else motion.release()
                         if (!moved) {
-                            motion.cancelPress()
-                            return@awaitEachGesture
+                            motion.select(finalTab)
                         }
-                        val finalTab = motion.release()
                         scope.launch {
                             panelOffset.animateTo(
                                 0f,
@@ -689,16 +757,17 @@ private fun RoutineFlowDockClearPdf(
                         onTabSelected(finalTab)
                     }
                 },
-            contentAlignment = Alignment.Center
+            contentAlignment = Alignment.CenterStart
         ) {
             if (slotPx > 0f) {
                 val indicatorWidth = slotPx * 0.86f
+                val indicatorIndex = motion.value
                 Box(
                     modifier = Modifier
                         .width(with(density) { indicatorWidth.toDp() })
                         .fillMaxHeight()
                         .graphicsLayer {
-                            translationX = slotPx * (motion.value + 0.5f) - indicatorWidth / 2f
+                            translationX = slotPx * (indicatorIndex + 0.5f) - indicatorWidth / 2f
                             scaleX = motion.stretchX
                             scaleY = motion.stretchY
                         }
@@ -707,15 +776,15 @@ private fun RoutineFlowDockClearPdf(
                         .background(
                             Brush.verticalGradient(
                                 listOf(
-                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.18f),
-                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.055f)
+                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.35f),
+                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
                                 )
                             )
                         )
                         .border(
                             1.dp,
                             Brush.verticalGradient(
-                                0f to Color.White.copy(alpha = 0.65f),
+                                0f to Color.White.copy(alpha = 0.75f),
                                 1f to Color.Transparent
                             ),
                             CircleShape
@@ -729,6 +798,13 @@ private fun RoutineFlowDockClearPdf(
                     } else {
                         index == selectedTab
                     }
+
+                    val contentScale by animateFloatAsState(
+                        targetValue = if (highlighted && pressed) 1.25f else 1f,
+                        animationSpec = spring(dampingRatio = 0.6f, stiffness = Spring.StiffnessMedium),
+                        label = "magnifyIcon"
+                    )
+
                     Box(
                         modifier = Modifier
                             .weight(1f)
@@ -749,6 +825,10 @@ private fun RoutineFlowDockClearPdf(
                         contentAlignment = Alignment.Center
                     ) {
                         Column(
+                            modifier = Modifier.graphicsLayer {
+                                scaleX = contentScale
+                                scaleY = contentScale
+                            },
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(2.dp)
                         ) {

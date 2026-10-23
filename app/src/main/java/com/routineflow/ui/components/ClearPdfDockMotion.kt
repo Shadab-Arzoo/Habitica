@@ -66,8 +66,8 @@ class ClearPdfDockMotion(
         settleJob?.cancel()
         scope.launch {
             launch { pressProgress.animateTo(1f, pressSpec) }
-            launch { scaleX.animateTo(if (reducedMotion) 1f else 1.055f, pressSpec) }
-            launch { scaleY.animateTo(if (reducedMotion) 1f else 1.035f, pressSpec) }
+            launch { scaleX.animateTo(if (reducedMotion) 1f else 1.25f, pressSpec) }
+            launch { scaleY.animateTo(if (reducedMotion) 1f else 1.25f, pressSpec) }
         }
     }
 
@@ -97,8 +97,8 @@ class ClearPdfDockMotion(
         if (!reducedMotion) {
             val direction = sign(deltaX)
             scope.launch {
-                scaleX.animateTo(1.055f + abs(deltaX / tabWidthPx).coerceAtMost(0.04f), pressSpec)
-                scaleY.animateTo(1.035f - direction * 0.008f, pressSpec)
+                scaleX.animateTo(1.25f + abs(deltaX / tabWidthPx).coerceAtMost(0.08f), pressSpec)
+                scaleY.animateTo(1.25f - direction * 0.015f, pressSpec)
             }
         }
     }
