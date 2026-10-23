@@ -123,6 +123,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -138,6 +139,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.routineflow.data.local.HabitEntity
@@ -162,6 +164,7 @@ import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlinx.coroutines.delay
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -212,8 +215,63 @@ private fun RoutineFlowApp(
     val tasks by viewModel.tasks.collectAsStateWithLifecycle()
     var showAdd by remember { mutableStateOf(false) }
     var showAddTask by remember { mutableStateOf(false) }
+    var addWaterActive by remember { mutableStateOf(false) }
+    var closingAddTask by remember { mutableStateOf(false) }
     var selectedTab by remember { mutableIntStateOf(0) }
     val haptics = LocalHapticFeedback.current
+    val addAnimationScope = androidx.compose.runtime.rememberCoroutineScope()
+    val waterProgress = remember { androidx.compose.animation.core.Animatable(0f) }
+
+    fun openAddTaskWithWater() {
+        if (addWaterActive || showAddTask) return
+        addAnimationScope.launch {
+            addWaterActive = true
+            closingAddTask = false
+            waterProgress.snapTo(0f)
+            if (reducedMotion) {
+                waterProgress.snapTo(1f)
+                showAddTask = true
+                addWaterActive = false
+            } else {
+                launch {
+                    waterProgress.animateTo(
+                        1f,
+                        androidx.compose.animation.core.tween(
+                            durationMillis = 820,
+                            easing = androidx.compose.animation.core.FastOutSlowInEasing
+                        )
+                    )
+                }
+                delay(420)
+                showAddTask = true
+                delay(500)
+                addWaterActive = false
+            }
+        }
+    }
+
+    fun closeAddTaskWithWater() {
+        if (!showAddTask && !addWaterActive) return
+        addAnimationScope.launch {
+            if (reducedMotion) {
+                waterProgress.snapTo(0f)
+                showAddTask = false
+                addWaterActive = false
+            } else {
+                addWaterActive = true
+                closingAddTask = true
+                waterProgress.animateTo(
+                    0f,
+                    androidx.compose.animation.core.tween(
+                        durationMillis = 520,
+                        easing = androidx.compose.animation.core.FastOutSlowInEasing
+                    )
+                )
+                showAddTask = false
+                addWaterActive = false
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -332,7 +390,11 @@ private fun RoutineFlowApp(
             ) {
                 var addPressed by remember { mutableStateOf(false) }
                 val addScale by animateFloatAsState(
-                    targetValue = if (addPressed) 0.9f else 1f,
+                    targetValue = when {
+                        addPressed -> 0.9f
+                        addWaterActive -> 0.94f
+                        else -> 1f
+                    },
                     animationSpec = if (reducedMotion) {
                         androidx.compose.animation.core.snap()
                     } else {
@@ -353,6 +415,17 @@ private fun RoutineFlowApp(
                     modifier = Modifier
                         .offset(y = (-64).dp)
                         .padding(bottom = 8.dp)
+                        .size(96.dp),
+                    contentAlignment = Alignment.BottomCenter
+                ) {
+                    WaterDropletBurst(
+                        progress = waterProgress.value,
+                        closing = closingAddTask,
+                        reducedMotion = reducedMotion,
+                        modifier = Modifier.matchParentSize()
+                    )
+                    Box(
+                        modifier = Modifier
                         .size(56.dp)
                         .graphicsLayer {
                             scaleX = addScale
@@ -395,7 +468,7 @@ private fun RoutineFlowApp(
                             ),
                             shape = CircleShape
                         )
-                        .pointerInput(reducedMotion) {
+                        .pointerInput(reducedMotion, addWaterActive) {
                             detectTapGestures(
                                 onPress = {
                                     addPressed = true
@@ -407,39 +480,41 @@ private fun RoutineFlowApp(
                                 },
                                 onTap = {
                                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    showAddTask = true
+                                    openAddTaskWithWater()
                                 }
                             )
                         }
                         .semantics {
                             role = Role.Button
-                            contentDescription = "Add a new habit"
+                            contentDescription = "Add a new task"
                         },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.08f))
-                            .border(
-                                1.dp,
-                                Color.White.copy(alpha = 0.18f),
-                                CircleShape
-                            )
-                    )
-                    Icon(
-                        Icons.Rounded.Add,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier
-                            .size(28.dp)
-                            .graphicsLayer {
-                                scaleX = if (addPressed) 0.88f else 1f
-                                scaleY = if (addPressed) 0.88f else 1f
-                                rotationZ = if (addPressed) -8f else 0f
-                            }
-                    )
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(Color.White.copy(alpha = 0.08f))
+                                .border(
+                                    1.dp,
+                                    Color.White.copy(alpha = 0.18f),
+                                    CircleShape
+                                )
+                        )
+                        Icon(
+                            Icons.Rounded.Add,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier
+                                .size(28.dp)
+                                .graphicsLayer {
+                                    scaleX = if (addPressed || addWaterActive) 0.88f else 1f
+                                    scaleY = if (addPressed || addWaterActive) 0.88f else 1f
+                                    rotationZ = if (addPressed || addWaterActive) -8f else 0f
+                                    alpha = 1f - waterProgress.value.coerceIn(0f, 1f)
+                                }
+                        )
+                    }
                 }
             }
         },
@@ -471,9 +546,9 @@ private fun RoutineFlowApp(
                         tasks = tasks,
                         viewModel = viewModel,
                         onOpenAdd = { showAdd = true },
-                        onOpenTask = { showAddTask = true }
+                        onOpenTask = { openAddTaskWithWater() }
                     )
-                    1 -> AllTasksScreen(tasks, viewModel, onOpenTask = { showAddTask = true })
+                    1 -> AllTasksScreen(tasks, viewModel, onOpenTask = { openAddTaskWithWater() })
                     2 -> PlannerScreen(tasks)
                     3 -> GardenScreen(state, tasks)
                     4 -> ProgressScreen(state)
@@ -510,13 +585,117 @@ private fun RoutineFlowApp(
     }
     if (showAddTask) {
         AddTaskDialog(
-            onDismiss = { showAddTask = false },
+            reducedMotion = reducedMotion,
+            onDismiss = { closeAddTaskWithWater() },
             onAdd = { title, description, category, priority, estimate, dueAt ->
                 viewModel.addTask(title, description, category, priority, dueAt, estimate)
-                showAddTask = false
+                closeAddTaskWithWater()
             }
         )
     }
+}
+
+@Composable
+private fun WaterDropletBurst(
+    progress: Float,
+    closing: Boolean,
+    reducedMotion: Boolean,
+    modifier: Modifier = Modifier
+) {
+    if (progress <= 0f) return
+
+    Canvas(modifier = modifier) {
+        val t = progress.coerceIn(0f, 1f)
+        val travel = if (closing) t else t
+        val fade = if (closing) t else (1f - ((t - 0.58f) / 0.42f)).coerceIn(0f, 1f)
+        val baseX = size.width / 2f
+        val baseY = size.height * 0.78f
+        val spread = size.width * 0.16f
+        val height = size.height * 0.7f
+        val dropletColor = Color(0xFF7DD3FC)
+        val highlight = Color.White.copy(alpha = 0.72f * fade)
+
+        val droplets = listOf(
+            Triple(-1f, 0.92f, 0.82f),
+            Triple(-0.35f, 1.12f, 1.02f),
+            Triple(0.38f, 1.0f, 0.9f),
+            Triple(1f, 0.78f, 0.72f)
+        )
+
+        droplets.forEachIndexed { index, (direction, arc, sizeFactor) ->
+            val localT = (travel * (0.92f + index * 0.025f)).coerceIn(0f, 1f)
+            val x = baseX + direction * spread * localT + kotlin.math.sin(localT * Math.PI).toFloat() * direction * 8f
+            val y = baseY - height * arc * localT + kotlin.math.sin(localT * Math.PI).toFloat() * 5f
+            val radius = (4.2f + sizeFactor * 3.2f) * if (reducedMotion) 0.82f else 1f
+            val alpha = fade * (0.98f - index * 0.06f)
+
+            drawCircle(
+                color = Color(0xFF38BDF8).copy(alpha = alpha * 0.16f),
+                radius = radius * 2.5f,
+                center = Offset(x, y + radius * 0.7f)
+            )
+            drawWaterDroplet(
+                center = Offset(x, y),
+                radius = radius,
+                color = dropletColor.copy(alpha = alpha * 0.78f)
+            )
+            drawCircle(
+                color = highlight.copy(alpha = alpha),
+                radius = radius * 0.28f,
+                center = Offset(x - radius * 0.34f, y - radius * 0.38f)
+            )
+        }
+
+        drawOval(
+            color = Color(0xFFBAE6FD).copy(alpha = fade * 0.2f),
+            topLeft = Offset(baseX - size.width * 0.2f, baseY - 2f),
+            size = Size(size.width * 0.4f, 7f)
+        )
+        drawCircle(
+            color = Color(0xFFBAE6FD).copy(alpha = fade * 0.28f),
+            radius = size.width * (0.28f + 0.1f * travel),
+            center = Offset(baseX, baseY)
+        )
+    }
+}
+
+private fun DrawScope.drawWaterDroplet(
+    center: Offset,
+    radius: Float,
+    color: Color
+) {
+    val path = Path().apply {
+        moveTo(center.x, center.y - radius * 1.45f)
+        cubicTo(
+            center.x + radius * 0.92f,
+            center.y - radius * 0.42f,
+            center.x + radius * 0.86f,
+            center.y + radius * 0.72f,
+            center.x,
+            center.y + radius
+        )
+        cubicTo(
+            center.x - radius * 0.86f,
+            center.y + radius * 0.72f,
+            center.x - radius * 0.92f,
+            center.y - radius * 0.42f,
+            center.x,
+            center.y - radius * 1.45f
+        )
+        close()
+    }
+    drawPath(
+        path = path,
+        brush = Brush.radialGradient(
+            colors = listOf(
+                Color.White.copy(alpha = 0.42f),
+                color,
+                Color(0xFF0284C7).copy(alpha = color.alpha)
+            ),
+            center = Offset(center.x - radius * 0.3f, center.y - radius * 0.42f),
+            radius = radius * 1.8f
+        )
+    )
 }
 
 @Composable
@@ -972,16 +1151,12 @@ private fun AdaptiveLazyColumn(
             modifier = Modifier
                 .width(contentWidth)
                 .align(Alignment.TopCenter),
-            contentPadding = if (maxWidth >= 600.dp) {
-                PaddingValues(
-                    start = contentPadding.calculateLeftPadding(androidx.compose.ui.unit.LayoutDirection.Ltr) + 8.dp,
-                    end = contentPadding.calculateRightPadding(androidx.compose.ui.unit.LayoutDirection.Ltr) + 8.dp,
-                    top = contentPadding.calculateTopPadding(),
-                    bottom = contentPadding.calculateBottomPadding()
-                )
-            } else {
-                contentPadding
-            },
+            contentPadding = PaddingValues(
+                start = if (maxWidth >= 600.dp) contentPadding.calculateLeftPadding(androidx.compose.ui.unit.LayoutDirection.Ltr) + 8.dp else contentPadding.calculateLeftPadding(androidx.compose.ui.unit.LayoutDirection.Ltr),
+                end = if (maxWidth >= 600.dp) contentPadding.calculateRightPadding(androidx.compose.ui.unit.LayoutDirection.Ltr) + 8.dp else contentPadding.calculateRightPadding(androidx.compose.ui.unit.LayoutDirection.Ltr),
+                top = contentPadding.calculateTopPadding(),
+                bottom = androidx.compose.ui.unit.max(contentPadding.calculateBottomPadding(), 120.dp)
+            ),
             verticalArrangement = verticalArrangement,
             content = content
         )
@@ -3121,6 +3296,7 @@ private fun AddHabitDialog(
 
 @Composable
 private fun AddTaskDialog(
+    reducedMotion: Boolean,
     onDismiss: () -> Unit,
     onAdd: (String, String, String, Int, Int?, Long?) -> Unit
 ) {
@@ -3128,19 +3304,67 @@ private fun AddTaskDialog(
     var description by remember { mutableStateOf("") }
     var category by remember { mutableStateOf("Personal") }
     var estimate by remember { mutableStateOf("25") }
+    val entryProgress = remember { androidx.compose.animation.core.Animatable(0f) }
+    val revealAccent = MaterialTheme.colorScheme.primary
 
-    Dialog(onDismissRequest = onDismiss) {
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        if (reducedMotion) {
+            entryProgress.snapTo(1f)
+        } else {
+            entryProgress.animateTo(
+                1f,
+                animationSpec = androidx.compose.animation.core.tween(
+                    durationMillis = 700,
+                    easing = androidx.compose.animation.core.FastOutSlowInEasing
+                )
+            )
+        }
+    }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
         Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(LiquidGlassTokens.cardRadius))
-                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.75f))
+                .fillMaxSize()
+                .padding(horizontal = 16.dp, vertical = 24.dp),
+            contentAlignment = Alignment.BottomCenter
         ) {
-            GlassSurface(
-                modifier = Modifier.fillMaxWidth(),
-                cornerRadius = LiquidGlassTokens.cardRadius,
-                elevation = LiquidGlassTokens.floatingElevation,
-                tint = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 92.dp)
+                    .graphicsLayer {
+                        val settled = androidx.compose.ui.util.lerp(0.94f, 1f, entryProgress.value)
+                        scaleX = settled
+                        scaleY = settled
+                        translationY = androidx.compose.ui.util.lerp(48f, 0f, entryProgress.value)
+                        alpha = androidx.compose.ui.util.lerp(0.2f, 1f, entryProgress.value)
+                        transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1f)
+                    }
+                    .drawWithContent {
+                        val revealTop = size.height * (1f - entryProgress.value)
+                        clipRect(top = revealTop) {
+                            this@drawWithContent.drawContent()
+                        }
+                        if (!reducedMotion && entryProgress.value < 1f) {
+                            val edgeAlpha = (1f - entryProgress.value).coerceIn(0f, 1f)
+                            drawOval(
+                                color = revealAccent.copy(alpha = 0.24f * edgeAlpha),
+                                topLeft = Offset(size.width * 0.12f, revealTop - 4f),
+                                size = Size(size.width * 0.76f, 8f)
+                            )
+                        }
+                    }
+                    .clip(RoundedCornerShape(LiquidGlassTokens.cardRadius))
+                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.75f))
+            ) {
+                GlassSurface(
+                    modifier = Modifier.fillMaxWidth(),
+                    cornerRadius = LiquidGlassTokens.cardRadius,
+                    elevation = LiquidGlassTokens.floatingElevation,
+                    tint = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f)
             ) {
                 Column(
                     modifier = Modifier
@@ -3150,6 +3374,7 @@ private fun AddTaskDialog(
                 ) {
                     Text(
                         text = "Add New Task",
+                        modifier = Modifier.liquidMenuReveal(entryProgress.value, 0.08f, 0.42f, reducedMotion),
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
@@ -3158,16 +3383,21 @@ private fun AddTaskDialog(
                     GlassInput(
                         value = title,
                         onValueChange = { title = it },
-                        label = "Task Title"
+                        label = "Task Title",
+                        modifier = Modifier.liquidMenuReveal(entryProgress.value, 0.16f, 0.5f, reducedMotion)
                     )
 
                     GlassInput(
                         value = description,
                         onValueChange = { description = it },
-                        label = "Description (Optional)"
+                        label = "Description (Optional)",
+                        modifier = Modifier.liquidMenuReveal(entryProgress.value, 0.25f, 0.6f, reducedMotion)
                     )
 
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(
+                        modifier = Modifier.liquidMenuReveal(entryProgress.value, 0.34f, 0.7f, reducedMotion),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
                         GlassInput(
                             value = category,
                             onValueChange = { category = it },
@@ -3183,7 +3413,10 @@ private fun AddTaskDialog(
                     }
 
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 16.dp)
+                            .liquidMenuReveal(entryProgress.value, 0.48f, 0.92f, reducedMotion),
                         horizontalArrangement = Arrangement.End,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -3216,8 +3449,35 @@ private fun AddTaskDialog(
                         }
                     }
                 }
+                }
             }
         }
+    }
+}
+
+private fun Modifier.liquidMenuReveal(
+    progress: Float,
+    start: Float,
+    end: Float,
+    reducedMotion: Boolean
+): Modifier {
+    if (reducedMotion) return this
+    val normalized = ((progress - start) / (end - start)).coerceIn(0f, 1f)
+    val eased = if (normalized >= 1f) {
+        1f
+    } else {
+        val spring = 1f - (
+            kotlin.math.exp((-7.5f * normalized).toDouble()) *
+                kotlin.math.cos((10.5f * normalized).toDouble())
+            ).toFloat()
+        spring.coerceIn(0f, 1.04f)
+    }
+    return graphicsLayer {
+        alpha = eased
+        translationY = androidx.compose.ui.util.lerp(30f, 0f, eased.coerceIn(0f, 1f))
+        val scale = androidx.compose.ui.util.lerp(0.95f, 1f, eased.coerceIn(0f, 1f))
+        scaleX = scale
+        scaleY = scale
     }
 }
 
