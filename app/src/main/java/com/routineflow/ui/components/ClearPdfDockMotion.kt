@@ -132,8 +132,11 @@ class ClearPdfDockMotion(
         dragValue = safeIndex
         scope.launch {
             mutex.mutate {
-                target.animateTo(safeIndex, positionSpec)
-                position.animateTo(safeIndex, positionSpec)
+                launch { target.animateTo(safeIndex, positionSpec) }
+                launch { position.animateTo(safeIndex, positionSpec) }
+                launch { pressProgress.animateTo(0f, releaseSpec) }
+                launch { scaleX.animateTo(1f, releaseSpec) }
+                launch { scaleY.animateTo(1f, releaseSpec) }
             }
         }
     }
@@ -144,8 +147,11 @@ class ClearPdfDockMotion(
         settleJob?.cancel()
         scope.launch {
             mutex.mutate {
-                target.animateTo(safeIndex, positionSpec)
-                position.animateTo(safeIndex, positionSpec)
+                launch { target.animateTo(safeIndex, positionSpec) }
+                launch { position.animateTo(safeIndex, positionSpec) }
+                launch { pressProgress.animateTo(0f, releaseSpec) }
+                launch { scaleX.animateTo(1f, releaseSpec) }
+                launch { scaleY.animateTo(1f, releaseSpec) }
             }
         }
     }

@@ -14,14 +14,20 @@ private val Context.preferencesDataStore by preferencesDataStore("routineflow_pr
 
 class Preferences @Inject constructor(@ApplicationContext private val context: Context) {
     private val reducedMotionKey = booleanPreferencesKey("reduced_motion")
+    private val darkThemeKey = booleanPreferencesKey("dark_theme")
     private val onboardingCompletedKey = booleanPreferencesKey("onboarding_completed")
     private val onboardingCategoriesKey = stringSetPreferencesKey("onboarding_categories")
     val reducedMotion: Flow<Boolean> = context.preferencesDataStore.data.map { it[reducedMotionKey] ?: false }
+    val darkTheme: Flow<Boolean?> = context.preferencesDataStore.data.map { it[darkThemeKey] }
     val onboardingCompleted: Flow<Boolean> =
         context.preferencesDataStore.data.map { it[onboardingCompletedKey] ?: false }
 
     suspend fun setReducedMotion(enabled: Boolean) {
         context.preferencesDataStore.edit { it[reducedMotionKey] = enabled }
+    }
+
+    suspend fun setDarkTheme(enabled: Boolean) {
+        context.preferencesDataStore.edit { it[darkThemeKey] = enabled }
     }
 
     suspend fun completeOnboarding(categories: Set<String>) {

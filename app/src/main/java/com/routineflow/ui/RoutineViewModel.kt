@@ -23,7 +23,8 @@ data class TodayUiState(
     val habits: List<HabitEntity> = emptyList(),
     val completedIds: Set<Long> = emptySet(),
     val recoveryCount: Int = 0,
-    val activity: Map<LocalDate, Int> = emptyMap()
+    val activity: Map<LocalDate, Int> = emptyMap(),
+    val taskActivity: Map<LocalDate, Int> = emptyMap()
 ) {
     val completedCount: Int get() = completedIds.size
     val progress: Float get() = if (habits.isEmpty()) 0f else completedCount.toFloat() / habits.size
@@ -52,13 +53,15 @@ class RoutineViewModel @Inject constructor(
         repository.habits(),
         repository.todayCompletions(),
         repository.recoveryPlans(),
-        repository.activityCounts(LocalDate.now().minusDays(111), LocalDate.now())
-    ) { habits, completions, recovery, activity ->
+        repository.activityCounts(LocalDate.now().minusDays(111), LocalDate.now()),
+        taskRepository.dailyCompletionCounts(LocalDate.now().minusDays(111), LocalDate.now())
+    ) { habits, completions, recovery, activity, taskActivity ->
         TodayUiState(
             habits = habits,
             completedIds = completions.map { it.habitId }.toSet(),
             recoveryCount = recovery.size,
-            activity = activity.associate { LocalDate.parse(it.date) to it.total }
+            activity = activity.associate { LocalDate.parse(it.date) to it.total },
+            taskActivity = taskActivity
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TodayUiState())
 
@@ -121,8 +124,8 @@ class RoutineViewModel @Inject constructor(
         }
     }
 
-    fun completeTask(taskId: Long) {
-        viewModelScope.launch { taskRepository.complete(taskId) }
+    fun setTaskCompleted(taskId: Long, completed: Boolean) {
+        viewModelScope.launch { taskRepository.setCompleted(taskId, completed) }
     }
 
     fun archiveTask(taskId: Long) {

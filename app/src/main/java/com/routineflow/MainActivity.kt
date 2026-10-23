@@ -17,12 +17,17 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
  import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
@@ -212,26 +217,112 @@ private fun RoutineFlowApp(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = when (selectedTab) {
-                            0 -> "RoutineFlow"
-                            1 -> "Sacred Garden 🌱"
-                            2 -> "Progress"
-                            3 -> "Tasks"
-                            4 -> "Planner"
-                            else -> "Settings"
-                        },
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold
+            val title = when (selectedTab) {
+                0 -> "RoutineFlow"
+                1 -> "Tasks"
+                2 -> "Planner"
+                3 -> "Gaming"
+                4 -> "Progress"
+                5 -> "Focus"
+                else -> "Settings"
+            }
+
+            val subtitle = when (selectedTab) {
+                0 -> {
+                    val date = LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE, MMM d", Locale.getDefault()))
+                    "Today is $date"
+                }
+                1 -> "Your to-dos and priorities"
+                2 -> "Schedule your day"
+                3 -> "Level up your life"
+                4 -> "Track your journey"
+                5 -> "Deep work sessions"
+                else -> "App preferences"
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                MaterialTheme.colorScheme.background.copy(alpha = 0.95f),
+                                MaterialTheme.colorScheme.background.copy(alpha = 0.85f),
+                                MaterialTheme.colorScheme.background.copy(alpha = 0.0f)
+                            )
+                        )
                     )
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    titleContentColor = MaterialTheme.colorScheme.onSurface
-                )
-            )
+                    .statusBarsPadding()
+                    .padding(horizontal = 24.dp)
+                    .padding(top = 16.dp, bottom = 24.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        AnimatedContent(
+                            targetState = title,
+                            transitionSpec = {
+                                (fadeIn() + slideInVertically { it / 2 }) togetherWith (fadeOut() + slideOutVertically { -it / 2 })
+                            }, label = "header_title"
+                        ) { targetTitle ->
+                            Text(
+                                text = targetTitle,
+                                style = MaterialTheme.typography.headlineMedium,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = MaterialTheme.colorScheme.onBackground
+                            )
+                        }
+
+                        AnimatedContent(
+                            targetState = subtitle,
+                            transitionSpec = {
+                                fadeIn() togetherWith fadeOut()
+                            }, label = "header_subtitle"
+                        ) { targetSubtitle ->
+                            Text(
+                                text = targetSubtitle,
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.7f))
+                            .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        AnimatedContent(
+                            targetState = selectedTab,
+                            transitionSpec = {
+                                (fadeIn() + scaleIn()) togetherWith (fadeOut() + scaleOut())
+                            }, label = "header_icon"
+                        ) { tab ->
+                            Icon(
+                                imageVector = when(tab) {
+                                    0 -> Icons.Rounded.AutoAwesome
+                                    1 -> Icons.Rounded.Check
+                                    2 -> Icons.Rounded.LocalFlorist
+                                    3 -> Icons.Rounded.Palette
+                                    4 -> Icons.Rounded.Insights
+                                    5 -> Icons.Rounded.NotificationsActive
+                                    else -> Icons.Rounded.Settings
+                                },
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                    }
+                }
+            }
         },
         floatingActionButton = {
             AnimatedVisibility(
@@ -382,10 +473,11 @@ private fun RoutineFlowApp(
                         onOpenAdd = { showAdd = true },
                         onOpenTask = { showAddTask = true }
                     )
-                    1 -> GardenScreen(state)
-                    2 -> ProgressScreen(state)
-                    3 -> AllTasksScreen(tasks, viewModel, onOpenTask = { showAddTask = true })
-                    4 -> PlannerScreen(tasks)
+                    1 -> AllTasksScreen(tasks, viewModel, onOpenTask = { showAddTask = true })
+                    2 -> PlannerScreen(tasks)
+                    3 -> GardenScreen(state, tasks)
+                    4 -> ProgressScreen(state)
+                    5 -> FocusScreen(tasks)
                     else -> SettingsScreen(
                         darkMode = darkMode,
                         onThemeToggle = onThemeToggle,
@@ -433,12 +525,13 @@ private fun RoutineFlowDock(
     reducedMotion: Boolean,
     onTabSelected: (Int) -> Unit
 ) {
-    val labels = listOf("Today", "Garden", "Progress", "Tasks", "Planner", "Settings")
+    val labels = listOf("Today", "Tasks", "Planner", "Gaming", "Progress", "Focus", "Settings")
     val icons = listOf(
         Icons.Rounded.Check,
+        Icons.Rounded.Check,
+        Icons.Rounded.AutoAwesome,
         Icons.Rounded.LocalFlorist,
         Icons.Rounded.Insights,
-        Icons.Rounded.Check,
         Icons.Rounded.AutoAwesome,
         Icons.Rounded.Settings
     )
@@ -521,7 +614,7 @@ private fun RoutineFlowDock(
                                     if (change.pressed) {
                                         currentX = change.position.x
                                         val rawIndex = currentX / slotPx
-                                        
+
                                         // Handle drag bounds and elastic panel offset
                                         val maxIndex = labels.size - 1f
                                         val overscroll = when {
@@ -532,7 +625,7 @@ private fun RoutineFlowDock(
 
                                         dockScope.launch {
                                             indicatorIndexAnim.snapTo(rawIndex.coerceIn(0f, maxIndex))
-                                            
+
                                             // Apply ClearPDF style dampening/elasticity to the panel
                                             val maxOverscrollPx = 40f
                                             val pullFraction = (overscroll * slotPx / widthPx).coerceIn(-1f, 1f)
@@ -643,12 +736,13 @@ private fun RoutineFlowDockClearPdf(
     onTabSelected: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val labels = listOf("Today", "Garden", "Progress", "Tasks", "Planner", "Settings")
+    val labels = listOf("Today", "Tasks", "Planner", "Gaming", "Progress", "Focus", "Settings")
     val icons = listOf(
         Icons.Rounded.Check,
+        Icons.Rounded.Check,
+        Icons.Rounded.AutoAwesome,
         Icons.Rounded.LocalFlorist,
         Icons.Rounded.Insights,
-        Icons.Rounded.Check,
         Icons.Rounded.AutoAwesome,
         Icons.Rounded.Settings
     )
@@ -1169,12 +1263,11 @@ private fun DailyTreeCard(state: TodayUiState, tasks: List<TaskEntity>) {
  * Features Low-Poly 3D Trees drawn directly on Canvas tiles for 2.5D Isometric & 3D Perspective!
  */
 @Composable
-private fun GardenScreen(state: TodayUiState) {
+private fun GardenScreen(state: TodayUiState, tasks: List<TaskEntity>) {
     var is3DMode by remember { mutableStateOf(false) }
     var tiltAngle by remember { mutableFloatStateOf(0.45f) }
-    var selectedDayIndex by remember { mutableIntStateOf(0) }
-    var testWaterBoost by remember { mutableIntStateOf(0) }
-
+    var rotationAngle by remember { mutableFloatStateOf(0f) }
+    var selectedDayIndex by remember { mutableIntStateOf(27) }
     val today = LocalDate.now()
     val pastDays = remember(today) { (27 downTo 0).map { today.minusDays(it.toLong()) } }
 
@@ -1197,19 +1290,19 @@ private fun GardenScreen(state: TodayUiState) {
                     ) {
                         Column {
                             Text(
-                                "Sacred Forest Garden 🌱",
+                                "Daily Growth Garden",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                "Trees grow based on task completion phases (25%, 50%, 75%, 100%).",
+                                "Every completed task becomes water for today's tree.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                         AssistChip(
                             onClick = {},
-                            label = { Text("${pastDays.count { (state.activity[it] ?: 0) > 0 }} Trees Grown") },
+                            label = { Text("${pastDays.count { (state.taskActivity[it] ?: 0) > 0 }} days with growth") },
                             leadingIcon = { Icon(Icons.Rounded.LocalFlorist, contentDescription = null, modifier = Modifier.size(16.dp)) }
                         )
                     }
@@ -1299,37 +1392,22 @@ private fun GardenScreen(state: TodayUiState) {
                             .clip(RoundedCornerShape(18.dp))
                             .background(MaterialTheme.colorScheme.surfaceContainerHighest)
                     ) {
-                        val cols = 7
                         Canvas(
                             modifier = Modifier
                                 .fillMaxSize()
+                                .graphicsLayer {
+                                    rotationY = if (is3DMode) rotationAngle else 0f
+                                    cameraDistance = 24f
+                                }
                                 .pointerInput(is3DMode, tiltAngle) {
-                                    detectTapGestures { offset ->
-                                        val startX = size.width / 2f
-                                        val startY = if (is3DMode) size.height * (1f - tiltAngle) else 80.dp.toPx()
-                                        val tileWidth = size.width / 5.2f
-                                        val tileHeight = tileWidth * 0.52f
-
-                                        val closestIndex = pastDays.indices.minByOrNull { index ->
-                                            val row = index / cols
-                                            val col = index % cols
-                                            val isoX = if (!is3DMode) {
-                                                startX + (col - row) * (tileWidth * 0.48f)
-                                            } else {
-                                                val depth = 1.0f + row * 0.35f
-                                                val scale = 1.0f / depth
-                                                startX + (col - cols / 2f) * (tileWidth * scale * 0.9f)
-                                            }
-                                            val isoY = if (!is3DMode) {
-                                                startY + (col + row) * (tileHeight * 0.42f)
-                                            } else {
-                                                startY + row * (tileHeight * 0.85f * (1.2f - tiltAngle))
-                                            }
-                                            val dx = offset.x - isoX
-                                            val dy = offset.y - isoY
-                                            dx * dx + dy * dy
-                                        } ?: 0
-                                        selectedDayIndex = closestIndex
+                                    detectDragGestures { change, dragAmount ->
+                                        change.consume()
+                                        if (is3DMode) {
+                                            rotationAngle = (rotationAngle + dragAmount.x * 0.45f)
+                                                .coerceIn(-55f, 55f)
+                                            tiltAngle = (tiltAngle - dragAmount.y / size.height * 0.25f)
+                                                .coerceIn(0.2f, 0.8f)
+                                        }
                                     }
                                 }
                         ) {
@@ -1338,18 +1416,18 @@ private fun GardenScreen(state: TodayUiState) {
                             val startX = size.width / 2f
                             val startY = if (is3DMode) size.height * (1f - tiltAngle) else 80.dp.toPx()
 
-                            pastDays.forEachIndexed { index, dayDate ->
-                                val row = index / cols
-                                val col = index % cols
-                                val activityCount = state.activity[dayDate] ?: 0
-                                val dayRatio = (activityCount / 4f).coerceIn(0f, 1f)
+                            listOf(selectedDayIndex to (pastDays.getOrNull(selectedDayIndex) ?: today)).forEach { (index, dayDate) ->
+                                val row = 0
+                                val col = 0
+                                val completedTasks = state.taskActivity[dayDate] ?: 0
+                                val dayRatio = treeRatio(completedTasks, tasks.size)
 
                                 val isoX = if (!is3DMode) {
                                     startX + (col - row) * (tileWidth * 0.48f)
                                 } else {
                                     val depth = 1.0f + row * 0.35f
                                     val scale = 1.0f / depth
-                                    startX + (col - cols / 2f) * (tileWidth * scale * 0.9f)
+                                    startX + (col - 0.5f) * (tileWidth * scale * 0.9f)
                                 }
 
                                 val isoY = if (!is3DMode) {
@@ -1361,7 +1439,7 @@ private fun GardenScreen(state: TodayUiState) {
                                 val isSelected = index == selectedDayIndex
                                 val tileColor = when {
                                     isSelected -> primaryColor
-                                    activityCount > 0 -> Color(0xFF4ADE80) // Lush green grass
+                                    completedTasks > 0 -> Color(0xFF4ADE80) // Lush green grass
                                     else -> Color(0xFFE5E7EB) // Dry earth skipped tile
                                 }
 
@@ -1372,17 +1450,44 @@ private fun GardenScreen(state: TodayUiState) {
                                 if (dayRatio > 0f) {
                                     val scale = if (is3DMode) 1.0f / (1.0f + row * 0.25f) else 1.0f
                                     drawLowPoly3DTree(isoX, isoY, scale, dayRatio)
-                                } else {
-                                    drawLowPolyRock(isoX, isoY)
                                 }
                             }
                         }
                     }
 
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        pastDays.takeLast(7).forEachIndexed { index, day ->
+                            val actualIndex = pastDays.lastIndex - 6 + index
+                            val dayRatio = treeRatio(state.taskActivity[day] ?: 0, tasks.size)
+                            FilterChip(
+                                selected = actualIndex == selectedDayIndex,
+                                onClick = { selectedDayIndex = actualIndex },
+                                label = {
+                                    Text(
+                                        day.dayOfMonth.toString(),
+                                        style = MaterialTheme.typography.labelSmall
+                                    )
+                                },
+                                leadingIcon = if (dayRatio > 0f) {
+                                    {
+                                        Icon(
+                                            Icons.Rounded.LocalFlorist,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                    }
+                                } else null
+                            )
+                        }
+                    }
+
                     // Selected Day Tree Summary & Testing Controls
                     val selectedDate = pastDays.getOrNull(selectedDayIndex) ?: today
-                    val selectedActivity = (state.activity[selectedDate] ?: 0) + testWaterBoost
-                    val selectedRatio = (selectedActivity / 4f).coerceIn(0f, 1f)
+                    val selectedActivity = state.taskActivity[selectedDate] ?: 0
+                    val selectedRatio = treeRatio(selectedActivity, tasks.size)
 
                     OutlinedCard(
                         modifier = Modifier.fillMaxWidth(),
@@ -1405,11 +1510,11 @@ private fun GardenScreen(state: TodayUiState) {
                                     )
                                     Text(
                                         text = when {
-                                            selectedRatio >= 1.0f -> "100% Fully Grown & Blooming! 🌳🌸"
-                                            selectedRatio >= 0.75f -> "75% Large Tree Phase 🌲"
-                                            selectedRatio >= 0.50f -> "50% Half-grown Tree 🪴"
-                                            selectedRatio >= 0.25f -> "25% Small Sprout Phase 🌿"
-                                            else -> "0% Skipped Day (No tree planted) 🪨"
+                                            selectedRatio >= 1.0f -> "100% Fully grown tree"
+                                            selectedRatio >= 0.75f -> "75% Nearly fully grown"
+                                            selectedRatio >= 0.50f -> "50% Half-grown tree"
+                                            selectedRatio >= 0.25f -> "25% Small tree"
+                                            else -> "0% No tree yet"
                                         },
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = if (selectedActivity > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
@@ -1417,7 +1522,7 @@ private fun GardenScreen(state: TodayUiState) {
                                 }
 
                                 Text(
-                                    text = if (selectedActivity > 0) "💧 ${selectedActivity * 25} Drops" else "0 Drops",
+                                    text = if (selectedActivity > 0) "Water ${selectedActivity * 25}" else "Water 0",
                                     style = MaterialTheme.typography.labelLarge,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.primary
@@ -1429,13 +1534,11 @@ private fun GardenScreen(state: TodayUiState) {
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text("Test Growth on Selected Tile:", style = MaterialTheme.typography.labelMedium)
-                                FilledTonalButton(
-                                    onClick = { testWaterBoost = (testWaterBoost + 1) % 5 },
-                                    shape = RoundedCornerShape(10.dp)
-                                ) {
-                                    Text("+1 Growth Stage 🌱")
-                                }
+                                Text(
+                                    "$selectedActivity of ${tasks.size} tasks completed · ${selectedActivity * 25} water collected",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
                         }
                     }
@@ -1505,6 +1608,13 @@ private fun DrawScope.drawIsoTile(
  * - 76% - 99%: Large 3D Tree 🌲
  * - 100%: Sacred Blooming 3D Tree 🌳🌸
  */
+private fun treeRatio(completedTasks: Int, totalTasks: Int): Float =
+    if (completedTasks <= 0 || totalTasks <= 0) {
+        0f
+    } else {
+        (completedTasks.toFloat() / totalTasks.toFloat()).coerceIn(0f, 1f)
+    }
+
 private fun DrawScope.drawLowPoly3DTree(
     isoX: Float,
     isoY: Float,
@@ -1741,6 +1851,261 @@ private fun RecoveryCard() {
 }
 
 @Composable
+private fun RecoveryScreen(
+    state: TodayUiState,
+    tasks: List<TaskEntity>
+) {
+    AdaptiveLazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(
+            horizontal = LiquidGlassTokens.contentHorizontalPadding,
+            vertical = LiquidGlassTokens.pageTopSpacing
+        ),
+        verticalArrangement = Arrangement.spacedBy(LiquidGlassTokens.cardSpacing)
+    ) {
+        item {
+            GlassSurface(
+                modifier = Modifier.fillMaxWidth(),
+                cornerRadius = LiquidGlassTokens.cardRadius,
+                highlighted = true
+            ) {
+                Column(
+                    modifier = Modifier.padding(LiquidGlassTokens.contentHorizontalPadding),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = "Restart without starting over",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = if (state.recoveryCount > 0) {
+                            "You have a gentle recovery plan ready. Pick one small action and rebuild momentum."
+                        } else {
+                            "Recovery appears after missed opportunities. You can also use this space to choose a smaller next step."
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    SuggestionChip(
+                        onClick = { },
+                        label = {
+                            Text(
+                                if (state.recoveryCount > 0) {
+                                    "${state.recoveryCount} recovery suggestion${if (state.recoveryCount == 1) "" else "s"}"
+                                } else {
+                                    "No active suggestions"
+                                }
+                            )
+                        },
+                        icon = {
+                            Icon(
+                                Icons.Rounded.LocalFlorist,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    )
+                }
+            }
+        }
+        item {
+            Text(
+                text = "Smallest useful step",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+        }
+        item {
+            val completedActions = state.completedCount + tasks.count { it.completed }
+            val minimumActions = 3
+            val minimumProgress = (completedActions.toFloat() / minimumActions).coerceIn(0f, 1f)
+            GlassSurface(
+                modifier = Modifier.fillMaxWidth(),
+                cornerRadius = LiquidGlassTokens.cardRadius,
+                tint = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+            ) {
+                Column(
+                    modifier = Modifier.padding(LiquidGlassTokens.contentHorizontalPadding),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = "Minimum Viable Day",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "Three small wins are enough to keep momentum.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Text(
+                            text = "$completedActions/$minimumActions",
+                            style = MaterialTheme.typography.titleLarge,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    LinearProgressIndicator(
+                        progress = { minimumProgress },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(8.dp)
+                            .clip(CircleShape),
+                        color = MaterialTheme.colorScheme.primary,
+                        trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                        strokeCap = StrokeCap.Round
+                    )
+                    Text(
+                        text = if (minimumProgress >= 1f) {
+                            "You protected the day. Anything else is a bonus."
+                        } else {
+                            "${minimumActions - completedActions.coerceAtMost(minimumActions)} small win${if (minimumActions - completedActions.coerceAtMost(minimumActions) == 1) "" else "s"} left."
+                        },
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+        item {
+            GlassSurface(
+                modifier = Modifier.fillMaxWidth(),
+                cornerRadius = LiquidGlassTokens.cardRadius
+            ) {
+                Column(
+                    modifier = Modifier.padding(LiquidGlassTokens.contentHorizontalPadding),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        text = "Choose one task under 15 minutes",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    val shortTask = tasks
+                        .filterNot { it.completed }
+                        .minByOrNull { it.estimatedMinutes ?: Int.MAX_VALUE }
+                    Text(
+                        text = shortTask?.title ?: "Add a quick task to make today easier.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    if (shortTask != null) {
+                        AssistChip(
+                            onClick = { },
+                            label = { Text("${shortTask.estimatedMinutes ?: 0} min") },
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Rounded.Check,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FocusScreen(tasks: List<TaskEntity>) {
+    val nextTask = tasks
+        .filterNot { it.completed }
+        .minByOrNull { it.estimatedMinutes ?: Int.MAX_VALUE }
+
+    AdaptiveLazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(
+            horizontal = LiquidGlassTokens.contentHorizontalPadding,
+            vertical = LiquidGlassTokens.pageTopSpacing
+        ),
+        verticalArrangement = Arrangement.spacedBy(LiquidGlassTokens.cardSpacing)
+    ) {
+        item {
+            GlassSurface(
+                modifier = Modifier.fillMaxWidth(),
+                cornerRadius = LiquidGlassTokens.cardRadius,
+                highlighted = true
+            ) {
+                Column(
+                    modifier = Modifier.padding(LiquidGlassTokens.contentHorizontalPadding),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        text = "Focus mode",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "Protect one meaningful block of attention. Start small, stay present, and let the next action be obvious.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    FilledTonalButton(onClick = { }) {
+                        Icon(
+                            Icons.Rounded.AutoAwesome,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text("Start a focus session")
+                    }
+                }
+            }
+        }
+        item {
+            Text(
+                text = "Suggested next task",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+        }
+        item {
+            GlassSurface(
+                modifier = Modifier.fillMaxWidth(),
+                cornerRadius = LiquidGlassTokens.cardRadius
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(LiquidGlassTokens.contentHorizontalPadding),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = nextTask?.title ?: "Your task list is clear",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = nextTask?.let { "${it.estimatedMinutes ?: 0} minutes · ${it.category}" }
+                                ?: "Enjoy the space or add something new.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Icon(
+                        Icons.Rounded.Check,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun HabitCard(
     habit: HabitEntity,
     completed: Boolean,
@@ -1904,7 +2269,7 @@ private fun TaskSection(
             tasks.take(4).forEach { task ->
                 TaskCard(
                     task = task,
-                    onComplete = { viewModel.completeTask(task.id) },
+                    onComplete = { viewModel.setTaskCompleted(task.id, !task.completed) },
                     onArchive = { viewModel.archiveTask(task.id) }
                 )
             }
@@ -2008,7 +2373,7 @@ private fun AllTasksScreen(
             items(tasks, key = { it.id }) { task ->
                 TaskCard(
                     task = task,
-                    onComplete = { viewModel.completeTask(task.id) },
+                    onComplete = { viewModel.setTaskCompleted(task.id, !task.completed) },
                     onArchive = { viewModel.archiveTask(task.id) }
                 )
             }
@@ -2139,11 +2504,71 @@ private fun PlannerBlockCard(start: LocalDateTime, end: LocalDateTime, title: St
 
 @Composable
 private fun ProgressScreen(state: TodayUiState) {
+    val level = (state.xp / 100) + 1
+    val levelProgress = (state.xp % 100) / 100f
+    val totalCheckIns = state.activity.values.sum()
+    val achievementCount = listOf(
+        state.currentStreak >= 3,
+        totalCheckIns >= 10,
+        state.completedCount >= 3
+    ).count { it }
     AdaptiveLazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        item {
+            GlassSurface(
+                modifier = Modifier.fillMaxWidth(),
+                cornerRadius = LiquidGlassTokens.cardRadius,
+                highlighted = true
+            ) {
+                Column(
+                    modifier = Modifier.padding(LiquidGlassTokens.contentHorizontalPadding),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = "Level $level",
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "$achievementCount achievements unlocked",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Text(
+                            text = "${state.xp} XP",
+                            style = MaterialTheme.typography.titleLarge,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    LinearProgressIndicator(
+                        progress = { levelProgress },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(8.dp)
+                            .clip(CircleShape),
+                        color = MaterialTheme.colorScheme.primary,
+                        trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                        strokeCap = StrokeCap.Round
+                    )
+                    Text(
+                        text = "${100 - (state.xp % 100)} XP to the next level",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
         item {
             ElevatedCard(
                 modifier = Modifier.fillMaxWidth(),
@@ -2182,6 +2607,49 @@ private fun ProgressScreen(state: TodayUiState) {
                         )
                     }
                     ContributionHeatmap(state.activity)
+                }
+            }
+        }
+        item {
+            GlassSurface(
+                modifier = Modifier.fillMaxWidth(),
+                cornerRadius = LiquidGlassTokens.cardRadius
+            ) {
+                Column(
+                    modifier = Modifier.padding(LiquidGlassTokens.contentHorizontalPadding),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        text = "Insights",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = when {
+                            state.currentStreak >= 3 -> "Your consistency is building. Protect the smallest version of your routine on busy days."
+                            state.completedCount > 0 -> "You have started today. One more small completion can turn momentum into a streak."
+                            else -> "A single completion today is enough to create a useful signal for tomorrow."
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        SuggestionChip(
+                            onClick = { },
+                            label = { Text("Streak ${state.currentStreak}d") },
+                            icon = {
+                                Icon(
+                                    Icons.Rounded.AutoAwesome,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        )
+                        SuggestionChip(
+                            onClick = { },
+                            label = { Text("$totalCheckIns check-ins") }
+                        )
+                    }
                 }
             }
         }
@@ -2496,132 +2964,159 @@ private fun AddHabitDialog(
     var emoji by remember { mutableStateOf("✨") }
     var reminder by remember { mutableStateOf("") }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = "Add New Habit",
-                style = MaterialTheme.typography.headlineSmall
-            )
-        },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        text = "Quick add templates",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        PRESET_HABITS.forEach { preset ->
-                            SuggestionChip(
-                                onClick = {
-                                    onAdd(preset.name, preset.category, preset.emoji, preset.reminderMinutes)
-                                },
-                                label = { Text("${preset.emoji} ${preset.name}") }
-                            )
-                        }
-                    }
-                }
-
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text("Habit name") },
-                    placeholder = { Text("e.g. Read 15 pages") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        text = "Category & Icon",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        CATEGORY_PRESETS.forEach { (catName, catEmoji) ->
-                            val selected = category == catName
-                            FilterChip(
-                                selected = selected,
-                                onClick = {
-                                    category = catName
-                                    emoji = catEmoji
-                                },
-                                label = { Text("$catEmoji $catName") },
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                            )
-                        }
-                    }
-                }
-
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
-                        value = emoji,
-                        onValueChange = { emoji = it.take(2) },
-                        label = { Text("Emoji") },
-                        modifier = Modifier.width(90.dp),
-                        singleLine = true
-                    )
-                    OutlinedTextField(
-                        value = category,
-                        onValueChange = { category = it },
-                        label = { Text("Category") },
-                        singleLine = true,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-
-                OutlinedTextField(
-                    value = reminder,
-                    onValueChange = { reminder = it.take(5) },
-                    label = { Text("Daily reminder (HH:mm, optional)") },
-                    placeholder = { Text("08:30") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    val parts = reminder.split(":")
-                    val hour = parts.getOrNull(0)?.toIntOrNull()
-                    val minute = parts.getOrNull(1)?.toIntOrNull()
-                    val minutes = if (
-                        parts.size == 2 &&
-                        hour != null && hour in 0..23 &&
-                        minute != null && minute in 0..59
-                    ) {
-                        hour * 60 + minute
-                    } else {
-                        null
-                    }
-                    onAdd(name, category, emoji, minutes)
-                },
-                enabled = name.isNotBlank() && (
-                    reminder.isBlank() ||
-                        reminder.matches(Regex("([01]\\d|2[0-3]):[0-5]\\d"))
-                    )
+    Dialog(onDismissRequest = onDismiss) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(LiquidGlassTokens.cardRadius))
+                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.75f))
+        ) {
+            GlassSurface(
+                modifier = Modifier.fillMaxWidth(),
+                cornerRadius = LiquidGlassTokens.cardRadius,
+                elevation = LiquidGlassTokens.floatingElevation,
+                tint = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f)
             ) {
-                Text("Add habit")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(24.dp),
+                    verticalArrangement = Arrangement.spacedBy(20.dp)
+                ) {
+                    Text(
+                        text = "Add New Habit",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text(
+                            text = "Quick templates",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            PRESET_HABITS.forEach { preset ->
+                                SuggestionChip(
+                                    onClick = {
+                                        onAdd(preset.name, preset.category, preset.emoji, preset.reminderMinutes)
+                                    },
+                                    label = { Text("${preset.emoji} ${preset.name}") },
+                                    shape = RoundedCornerShape(12.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    GlassInput(
+                        value = name,
+                        onValueChange = { name = it },
+                        label = "Habit name",
+                        placeholder = "e.g. Read 15 pages"
+                    )
+
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text(
+                            text = "Category & Icon",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            CATEGORY_PRESETS.forEach { (catName, catEmoji) ->
+                                val selected = category == catName
+                                FilterChip(
+                                    selected = selected,
+                                    onClick = {
+                                        category = catName
+                                        emoji = catEmoji
+                                    },
+                                    label = { Text("$catEmoji $catName") },
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                        selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                    )
+                                )
+                            }
+                        }
+                    }
+
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        GlassInput(
+                            value = emoji,
+                            onValueChange = { emoji = it.take(2) },
+                            label = "Emoji",
+                            modifier = Modifier.weight(0.3f)
+                        )
+                        GlassInput(
+                            value = category,
+                            onValueChange = { category = it },
+                            label = "Category",
+                            modifier = Modifier.weight(0.7f)
+                        )
+                    }
+
+                    GlassInput(
+                        value = reminder,
+                        onValueChange = { reminder = it.take(5) },
+                        label = "Daily reminder (HH:mm, optional)",
+                        placeholder = "08:30"
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TextButton(
+                            onClick = onDismiss,
+                            shape = RoundedCornerShape(16.dp)
+                        ) {
+                            Text("Cancel", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold)
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Button(
+                            onClick = {
+                                val parts = reminder.split(":")
+                                val hour = parts.getOrNull(0)?.toIntOrNull()
+                                val minute = parts.getOrNull(1)?.toIntOrNull()
+                                val minutes = if (
+                                    parts.size == 2 &&
+                                    hour != null && hour in 0..23 &&
+                                    minute != null && minute in 0..59
+                                ) {
+                                    hour * 60 + minute
+                                } else {
+                                    null
+                                }
+                                onAdd(name, category, emoji, minutes)
+                            },
+                            enabled = name.isNotBlank() && (
+                                reminder.isBlank() ||
+                                    reminder.matches(Regex("([01]\\d|2[0-3]):[0-5]\\d"))
+                                ),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary
+                            )
+                        ) {
+                            Text("Add habit", fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
             }
         }
-    )
+    }
 }
 
 @Composable
@@ -2634,57 +3129,120 @@ private fun AddTaskDialog(
     var category by remember { mutableStateOf("Personal") }
     var estimate by remember { mutableStateOf("25") }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Add New Task") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(
-                    value = title,
-                    onValueChange = { title = it },
-                    label = { Text("Task Title") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                OutlinedTextField(
-                    value = description,
-                    onValueChange = { description = it },
-                    label = { Text("Description (Optional)") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
-                        value = category,
-                        onValueChange = { category = it },
-                        label = { Text("Category") },
-                        modifier = Modifier.weight(1f),
-                        singleLine = true
+    Dialog(onDismissRequest = onDismiss) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(LiquidGlassTokens.cardRadius))
+                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.75f))
+        ) {
+            GlassSurface(
+                modifier = Modifier.fillMaxWidth(),
+                cornerRadius = LiquidGlassTokens.cardRadius,
+                elevation = LiquidGlassTokens.floatingElevation,
+                tint = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(24.dp),
+                    verticalArrangement = Arrangement.spacedBy(20.dp)
+                ) {
+                    Text(
+                        text = "Add New Task",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
-                    OutlinedTextField(
-                        value = estimate,
-                        onValueChange = { estimate = it.filter { char -> char.isDigit() }.take(3) },
-                        label = { Text("Minutes") },
-                        modifier = Modifier.width(100.dp),
-                        singleLine = true
+
+                    GlassInput(
+                        value = title,
+                        onValueChange = { title = it },
+                        label = "Task Title"
                     )
+
+                    GlassInput(
+                        value = description,
+                        onValueChange = { description = it },
+                        label = "Description (Optional)"
+                    )
+
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        GlassInput(
+                            value = category,
+                            onValueChange = { category = it },
+                            label = "Category",
+                            modifier = Modifier.weight(1f)
+                        )
+                        GlassInput(
+                            value = estimate,
+                            onValueChange = { estimate = it.filter { char -> char.isDigit() }.take(3) },
+                            label = "Minutes",
+                            modifier = Modifier.weight(0.5f)
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TextButton(
+                            onClick = onDismiss,
+                            shape = RoundedCornerShape(16.dp)
+                        ) {
+                            Text("Cancel", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold)
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Button(
+                            onClick = {
+                                onAdd(
+                                    title,
+                                    description,
+                                    category,
+                                    1,
+                                    estimate.toIntOrNull() ?: 25,
+                                    null
+                                )
+                            },
+                            enabled = title.isNotBlank(),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary
+                            )
+                        ) {
+                            Text("Add task", fontWeight = FontWeight.Bold)
+                        }
+                    }
                 }
             }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    onAdd(
-                        title,
-                        description,
-                        category,
-                        1,
-                        estimate.toIntOrNull() ?: 25,
-                        null
-                    )
-                },
-                enabled = title.isNotBlank()
-            ) { Text("Add task") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+        }
+    }
+}
+
+@Composable
+private fun GlassInput(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    modifier: Modifier = Modifier,
+    placeholder: String = "",
+    singleLine: Boolean = true
+) {
+    androidx.compose.material3.OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label, fontWeight = FontWeight.Medium) },
+        placeholder = { if (placeholder.isNotBlank()) Text(placeholder) },
+        singleLine = singleLine,
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+            focusedContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.4f),
+            unfocusedContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.2f),
+            focusedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
+            unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
+        )
     )
 }

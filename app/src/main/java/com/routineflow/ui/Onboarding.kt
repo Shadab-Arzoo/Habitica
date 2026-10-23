@@ -134,6 +134,8 @@ class OnboardingViewModel @Inject constructor(
     private val _error = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
     val reducedMotion: StateFlow<Boolean> = preferences.reducedMotion
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+    val darkTheme: StateFlow<Boolean?> = preferences.darkTheme
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
     val state: StateFlow<OnboardingUiState> = kotlinx.coroutines.flow.combine(
         preferences.onboardingCompleted,
         routineRepository.habits(),
@@ -151,6 +153,10 @@ class OnboardingViewModel @Inject constructor(
 
     fun setReducedMotion(enabled: Boolean) {
         viewModelScope.launch { preferences.setReducedMotion(enabled) }
+    }
+
+    fun setDarkTheme(enabled: Boolean) {
+        viewModelScope.launch { preferences.setDarkTheme(enabled) }
     }
 
     fun finish(categories: Set<String>, selectedTasks: List<TaskTemplate>, onSaved: () -> Unit) {

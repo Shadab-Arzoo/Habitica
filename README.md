@@ -9,15 +9,16 @@ RoutineFlow is a native, offline-first Android habit app built with Kotlin, Jetp
 - Duplicate completion protection through a `(habitId, date)` primary key and conflict-ignore insert.
 - Flow-driven Today state with progress, XP, habit completion, archive, and add-habit flows.
 - Recovery rules that count only scheduled weekdays and trigger after two consecutive scheduled misses.
-- Progress and Settings surfaces ready for the remaining preference and analytics flows.
+- Progress and Settings surfaces ready for the remaining preference and analytics flows, with persisted light/dark theme selection.
 - Two native home-screen widgets: Today momentum and weekly check-ins.
-- A 16-week GitHub-style contribution heatmap in Progress, using persisted Room completion records.
+- A task-powered Gaming garden with persistent daily water totals, five distinct low-poly tree growth stages, a 2.5D view, an interactive 3D-style perspective, and selectable historical days.
 - Persistent productivity tasks with title, notes, category, priority, estimate, energy-ready fields, due timestamp, archive state, and completion history.
 - Atomic task completion with a unique `(taskId, date)` record to prevent duplicate completion rewards.
 - Task creation and completion controls on Today, including an offline-friendly empty state and priority cues.
 - Planner destination with deterministic, approval-only daily scheduling proposals, deadline awareness, workload indicators, and explicit unscheduled-task explanations.
 - First-run onboarding with animated welcome slides, selectable focus areas, editable starter task suggestions, a reviewable plan, and a final confirmation before Room persistence.
 - Native Liquid Glass visual system with adaptive content widths, Apple-inspired silver-white/blue light styling, readable dark mode, selective glossy surfaces, continuous dock drag highlighting, directional screen transitions, and a user-controlled reduced-motion mode.
+- Task completion history is stored per task and date with duplicate-safe Room writes; toggling a task off removes only the current day's completion record so tree growth updates immediately without duplicate water rewards.
 
 ## Using the widgets
 
@@ -55,12 +56,15 @@ The project is configured for Android SDK 35 and Java 17 toolchains. An Android 
 ## Visual system and motion
 
 RoutineFlow uses an Android-native interpretation of Liquid Glass rather than copying
-proprietary Apple assets, fonts, or layouts. The shared design direction follows the
-provided MockFlow skill: a silver-white `#F2F2F7` background, white glass slabs, blue
-`#007AFF` accents, deep-gray body text, 20dp cards, and 12dp controls. `GlassSurface`
-provides reusable translucent fills, glossy top-to-bottom sheen, thin light borders,
-soft ambient elevation, and a simplified rendering mode for lower-power or reduced-motion
-configurations. Broad backdrop blur and continuous shader effects are intentionally avoided.
+proprietary Apple assets, fonts, or layouts. The shared design system uses a cool
+silver-white light background, deep navy dark mode, electric blue primary actions,
+violet secondary accents, rose tertiary feedback, rounded 24dp cards, and 16dp controls.
+Typography uses the platform sans-serif family with a stronger display-to-body hierarchy.
+`GlassSurface` provides reusable translucent fills, glossy top-to-bottom sheen, thin light
+borders, soft ambient elevation, and a simplified rendering mode for lower-power or
+reduced-motion configurations. Broad backdrop blur and continuous shader effects are
+intentionally avoided. Theme selection is persisted in DataStore and falls back to the
+system theme only before a user preference has been saved.
 
 The bottom dock supports ordinary taps and a held horizontal swipe: its single highlight
 follows the finger continuously and the tab under the release point opens. The Settings

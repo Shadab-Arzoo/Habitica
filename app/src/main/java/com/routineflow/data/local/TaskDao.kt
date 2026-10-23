@@ -24,6 +24,12 @@ interface TaskDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertCompletion(completion: TaskCompletionEntity): Long
 
+    @Query("DELETE FROM task_completions WHERE taskId = :taskId AND date = :date")
+    suspend fun deleteCompletion(taskId: Long, date: String)
+
+    @Query("SELECT date, COUNT(*) AS total FROM task_completions WHERE date BETWEEN :startDate AND :endDate GROUP BY date ORDER BY date")
+    fun observeDailyCompletionCounts(startDate: String, endDate: String): Flow<List<DailyTaskCompletionCount>>
+
     @Query("SELECT * FROM subtasks WHERE taskId = :taskId ORDER BY position ASC, id ASC")
     fun observeSubtasks(taskId: Long): Flow<List<SubtaskEntity>>
 
@@ -40,10 +46,19 @@ interface TaskDao {
     fun observeOverdueTasks(now: Long): Flow<List<TaskEntity>>
 
     @Transaction
-    suspend fun completeTask(taskId: Long, date: String): Boolean {
-        val inserted = insertCompletion(TaskCompletionEntity(taskId = taskId, date = date))
-        if (inserted == -1L) return false
-        updateTaskCompletion(taskId, completed = true, updatedAt = System.currentTimeMillis())
+    suspend fun setTaskCompleted(taskId: Long, completed: Boolean, date: String): Boolean {
+        if (completed) {
+            val inserted = insertCompletion(TaskCompletionEntity(taskId = taskId, date = date))
+            if (inserted == -1L) return false
+        } else {
+            deleteCompletion(taskId, date)
+        }
+        updateTaskCompletion(taskId, completed, System.currentTimeMillis())
         return true
     }
 }
+
+data class DailyTaskCompletionCount(
+    val date: String,
+    val total: Int
+)
