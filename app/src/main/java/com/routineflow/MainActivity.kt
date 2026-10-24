@@ -72,6 +72,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
@@ -2264,6 +2265,35 @@ private fun FocusScreen(tasks: List<TaskEntity>) {
         .filterNot { it.completed }
         .minByOrNull { it.estimatedMinutes ?: Int.MAX_VALUE }
 
+    var isRunning by remember { mutableStateOf(false) }
+    var secondsLeft by remember { mutableIntStateOf(25 * 60) }
+    var completedSessions by remember { mutableIntStateOf(0) }
+    val haptics = LocalHapticFeedback.current
+
+    androidx.compose.runtime.LaunchedEffect(isRunning, secondsLeft) {
+        if (isRunning && secondsLeft > 0) {
+            kotlinx.coroutines.delay(1000L)
+            secondsLeft--
+        } else if (isRunning && secondsLeft == 0) {
+            isRunning = false
+            completedSessions++
+            secondsLeft = 25 * 60
+            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+        }
+    }
+
+    val totalSeconds = 25 * 60
+    val progress = (secondsLeft.toFloat() / totalSeconds).coerceIn(0f, 1f)
+    val animatedProgress by animateFloatAsState(
+        targetValue = progress,
+        animationSpec = spring(stiffness = Spring.StiffnessLow),
+        label = "focus_progress"
+    )
+
+    val minutes = secondsLeft / 60
+    val seconds = secondsLeft % 60
+    val timeFormatted = String.format(Locale.getDefault(), "%02d:%02d", minutes, seconds)
+
     AdaptiveLazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(
@@ -2279,31 +2309,109 @@ private fun FocusScreen(tasks: List<TaskEntity>) {
                 highlighted = true
             ) {
                 Column(
-                    modifier = Modifier.padding(LiquidGlassTokens.contentHorizontalPadding),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(18.dp)
                 ) {
                     Text(
-                        text = "Focus mode",
+                        text = "Pomodoro Focus Mode",
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold
                     )
-                    Text(
-                        text = "Protect one meaningful block of attention. Start small, stay present, and let the next action be obvious.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    FilledTonalButton(onClick = { }) {
-                        Icon(
-                            Icons.Rounded.AutoAwesome,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
+
+                    Box(
+                        modifier = Modifier.size(180.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Canvas(modifier = Modifier.fillMaxSize()) {
+                            val stroke = 12.dp.toPx()
+                            val radius = (size.minDimension - stroke) / 2f
+                            val center = Offset(size.width / 2f, size.height / 2f)
+
+                            drawCircle(
+                                color = Color.White.copy(alpha = 0.1f),
+                                radius = radius,
+                                center = center,
+                                style = Stroke(width = stroke)
+                            )
+
+                            drawArc(
+                                brush = Brush.sweepGradient(
+                                    colors = listOf(
+                                        Color(0xFF38BDF8),
+                                        Color(0xFF818CF8),
+                                        Color(0xFF38BDF8)
+                                    )
+                                ),
+                                startAngle = -90f,
+                                sweepAngle = 360f * animatedProgress,
+                                useCenter = false,
+                                topLeft = Offset(stroke / 2f, stroke / 2f),
+                                size = Size(size.width - stroke, size.height - stroke),
+                                style = Stroke(width = stroke, cap = StrokeCap.Round)
+                            )
+                        }
+
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                text = timeFormatted,
+                                style = MaterialTheme.typography.headlineLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = if (isRunning) "Deep Focus" else "Paused",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Button(
+                            onClick = {
+                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                isRunning = !isRunning
+                            },
+                            shape = RoundedCornerShape(16.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary
+                            )
+                        ) {
+                            Icon(
+                                if (isRunning) Icons.Rounded.NotificationsActive else Icons.Rounded.AutoAwesome,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(if (isRunning) "Pause" else "Start Focus")
+                        }
+
+                        TextButton(
+                            onClick = {
+                                isRunning = false
+                                secondsLeft = 25 * 60
+                            }
+                        ) {
+                            Text("Reset", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+
+                    if (completedSessions > 0) {
+                        Text(
+                            text = "🎉 $completedSessions focus session${if (completedSessions > 1) "s" else ""} completed today!",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold
                         )
-                        Spacer(Modifier.width(8.dp))
-                        Text("Start a focus session")
                     }
                 }
             }
         }
+
         item {
             Text(
                 text = "Suggested next task",
@@ -2311,6 +2419,7 @@ private fun FocusScreen(tasks: List<TaskEntity>) {
                 fontWeight = FontWeight.Bold
             )
         }
+
         item {
             GlassSurface(
                 modifier = Modifier.fillMaxWidth(),
@@ -3091,22 +3200,44 @@ private fun ActivityLineChart(values: List<Int>, maxValue: Int) {
 private fun ContributionHeatmap(activity: Map<LocalDate, Int>) {
     val start = LocalDate.now().minusDays(111)
     val max = activity.values.maxOrNull()?.coerceAtLeast(1) ?: 1
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    var selectedDateInfo by remember { mutableStateOf<Pair<LocalDate, Int>?>(null) }
+
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         repeat(7) { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 repeat(16) { column ->
                     val date = start.plusDays((column * 7L + row).coerceAtMost(111))
-                    val intensity = (activity[date] ?: 0).toFloat() / max
+                    val count = activity[date] ?: 0
+                    val intensity = count.toFloat() / max
                     Box(
                         Modifier
                             .size(15.dp)
                             .clip(RoundedCornerShape(4.dp))
                             .background(heatmapColor(intensity))
+                            .clickable {
+                                selectedDateInfo = date to count
+                            }
                             .semantics {
-                                contentDescription = "$date: ${activity[date] ?: 0} completions"
+                                contentDescription = "$date: $count completions"
                             }
                     )
                 }
+            }
+        }
+
+        selectedDateInfo?.let { (date, count) ->
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.8f),
+                modifier = Modifier.padding(top = 4.dp)
+            ) {
+                Text(
+                    text = "${date.format(DateTimeFormatter.ofPattern("MMM d, yyyy", Locale.getDefault()))}: $count check-in${if (count != 1) "s" else ""}",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                )
             }
         }
     }
