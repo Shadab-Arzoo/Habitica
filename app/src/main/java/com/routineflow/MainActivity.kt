@@ -23,6 +23,7 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -136,6 +137,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -198,7 +201,7 @@ private fun RoutineFlowRoot() {
             modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.background
         ) {
-            if (onboarding.completed) {
+            if (false /* onboarding.completed */) {
                 RoutineFlowApp(
                     darkMode = darkMode,
                     onThemeToggle = { darkMode = !darkMode },
@@ -286,8 +289,16 @@ private fun RoutineFlowApp(
     Scaffold(
         floatingActionButtonPosition = androidx.compose.material3.FabPosition.End,
         topBar = {
+            val hour = LocalTime.now().hour
+            val greeting = when (hour) {
+                in 5..11 -> "Good morning"
+                in 12..16 -> "Good afternoon"
+                in 17..20 -> "Good evening"
+                else -> "Good night"
+            }
+
             val title = when (selectedTab) {
-                0 -> "RoutineFlow"
+                0 -> greeting
                 1 -> "Tasks"
                 2 -> "Planner"
                 3 -> "Gaming"
@@ -298,8 +309,9 @@ private fun RoutineFlowApp(
 
             val subtitle = when (selectedTab) {
                 0 -> {
-                    val date = LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE, MMM d", Locale.getDefault()))
-                    "Today is $date"
+                    val date = LocalDate.now().format(DateTimeFormatter.ofPattern("MMM d", Locale.getDefault()))
+                    val remainingTasks = tasks.count { !it.completed }
+                    "Today is $date • $remainingTasks task${if (remainingTasks != 1) "s" else ""} left"
                 }
                 1 -> "Your to-dos and priorities"
                 2 -> "Schedule your day"
@@ -315,22 +327,22 @@ private fun RoutineFlowApp(
                     .background(
                         Brush.verticalGradient(
                             colors = listOf(
-                                MaterialTheme.colorScheme.background.copy(alpha = 0.95f),
-                                MaterialTheme.colorScheme.background.copy(alpha = 0.85f),
+                                MaterialTheme.colorScheme.background,
+                                MaterialTheme.colorScheme.background.copy(alpha = 0.9f),
                                 MaterialTheme.colorScheme.background.copy(alpha = 0.0f)
                             )
                         )
                     )
-                    .statusBarsPadding()
-                    .padding(horizontal = 24.dp)
-                    .padding(top = 16.dp, bottom = 24.dp)
             ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .statusBarsPadding()
+                        .padding(horizontal = 24.dp, vertical = 20.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column {
+                    Column(modifier = Modifier.weight(1f)) {
                         AnimatedContent(
                             targetState = title,
                             transitionSpec = {
@@ -348,30 +360,53 @@ private fun RoutineFlowApp(
                         AnimatedContent(
                             targetState = subtitle,
                             transitionSpec = {
-                                fadeIn() togetherWith fadeOut()
+                                (fadeIn() + slideInHorizontally { it / 4 }) togetherWith (fadeOut() + slideOutHorizontally { -it / 4 })
                             }, label = "header_subtitle"
                         ) { targetSubtitle ->
                             Text(
                                 text = targetSubtitle,
                                 style = MaterialTheme.typography.labelLarge,
                                 color = MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.Medium
+                                fontWeight = FontWeight.SemiBold
                             )
                         }
                     }
 
                     Box(
                         modifier = Modifier
-                            .size(48.dp)
+                            .size(54.dp)
+                            .shadow(
+                                elevation = 12.dp,
+                                shape = CircleShape,
+                                ambientColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
+                                spotColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                            )
                             .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.7f))
-                            .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f), CircleShape),
+                            .background(
+                                Brush.linearGradient(
+                                    colors = listOf(
+                                        MaterialTheme.colorScheme.surface,
+                                        MaterialTheme.colorScheme.surfaceContainerHighest
+                                    )
+                                )
+                            )
+                            .border(
+                                width = 1.dp,
+                                brush = Brush.linearGradient(
+                                    colors = listOf(
+                                        Color.White.copy(alpha = 0.8f),
+                                        Color.White.copy(alpha = 0.1f)
+                                    )
+                                ),
+                                shape = CircleShape
+                            ),
                         contentAlignment = Alignment.Center
                     ) {
                         AnimatedContent(
                             targetState = selectedTab,
                             transitionSpec = {
-                                (fadeIn() + scaleIn()) togetherWith (fadeOut() + scaleOut())
+                                (fadeIn(animationSpec = androidx.compose.animation.core.tween(300)) + scaleIn(initialScale = 0.8f)) togetherWith 
+                                (fadeOut(animationSpec = androidx.compose.animation.core.tween(200)) + scaleOut(targetScale = 0.8f))
                             }, label = "header_icon"
                         ) { tab ->
                             Icon(
@@ -386,7 +421,30 @@ private fun RoutineFlowApp(
                                 },
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(24.dp)
+                                modifier = Modifier.size(26.dp)
+                            )
+                        }
+                        
+                        if (selectedTab == 0 && tasks.any { !it.completed }) {
+                            val infiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition()
+                            val pulseScale by infiniteTransition.animateFloat(
+                                initialValue = 1f,
+                                targetValue = 1.4f,
+                                animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                                    animation = androidx.compose.animation.core.tween(1500, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+                                    repeatMode = androidx.compose.animation.core.RepeatMode.Restart
+                                ),
+                                label = "pulse"
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .graphicsLayer {
+                                        scaleX = pulseScale
+                                        scaleY = pulseScale
+                                        alpha = (1.4f - pulseScale) / 0.4f * 0.5f
+                                    }
+                                    .border(2.dp, MaterialTheme.colorScheme.primary, CircleShape)
                             )
                         }
                     }
@@ -539,13 +597,13 @@ private fun RoutineFlowApp(
                 targetState = selectedTab,
                 transitionSpec = {
                     if (reducedMotion) {
-                        fadeIn() togetherWith fadeOut()
+                        fadeIn(androidx.compose.animation.core.tween(300)) togetherWith fadeOut(androidx.compose.animation.core.tween(300))
                     } else if (targetState > initialState) {
-                        (slideInHorizontally { it / 5 } + fadeIn()) togetherWith
-                            (slideOutHorizontally { -it / 5 } + fadeOut())
+                        (slideInHorizontally { it / 4 } + fadeIn(androidx.compose.animation.core.tween(300)) + scaleIn(initialScale = 0.92f, animationSpec = androidx.compose.animation.core.tween(300))) togetherWith
+                            (slideOutHorizontally { -it / 4 } + fadeOut(androidx.compose.animation.core.tween(300)) + scaleOut(targetScale = 0.92f, animationSpec = androidx.compose.animation.core.tween(300)))
                     } else {
-                        (slideInHorizontally { -it / 5 } + fadeIn()) togetherWith
-                            (slideOutHorizontally { it / 5 } + fadeOut())
+                        (slideInHorizontally { -it / 4 } + fadeIn(androidx.compose.animation.core.tween(300)) + scaleIn(initialScale = 0.92f, animationSpec = androidx.compose.animation.core.tween(300))) togetherWith
+                            (slideOutHorizontally { it / 4 } + fadeOut(androidx.compose.animation.core.tween(300)) + scaleOut(targetScale = 0.92f, animationSpec = androidx.compose.animation.core.tween(300)))
                     }
                 },
                 label = "screen_transition",
@@ -1040,21 +1098,20 @@ private fun RoutineFlowDockClearPdf(
                 )
                 .clip(CircleShape)
                 .background(
-                    Brush.linearGradient(
+                    Brush.verticalGradient(
                         listOf(
-                            Color.White.copy(alpha = 0.65f),
                             MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
-                            MaterialTheme.colorScheme.surface.copy(alpha = 0.75f),
-                            Color.White.copy(alpha = 0.45f)
+                            MaterialTheme.colorScheme.surface.copy(alpha = 0.65f),
+                            MaterialTheme.colorScheme.surface.copy(alpha = 0.8f)
                         )
                     )
                 )
                 .border(
                     width = 1.dp,
                     brush = Brush.verticalGradient(
-                        0f to Color.White.copy(alpha = 0.85f),
-                        0.28f to Color.White.copy(alpha = 0.45f),
-                        1f to MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f)
+                        0f to Color.White.copy(alpha = 0.45f),
+                        0.3f to Color.White.copy(alpha = 0.15f),
+                        1f to MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f)
                     ),
                     shape = CircleShape
                 )
@@ -1124,15 +1181,16 @@ private fun RoutineFlowDockClearPdf(
                         .background(
                             Brush.verticalGradient(
                                 listOf(
-                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.35f),
-                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
+                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
                                 )
                             )
                         )
                         .border(
                             1.dp,
                             Brush.verticalGradient(
-                                0f to Color.White.copy(alpha = 0.75f),
+                                0f to MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
+                                0.5f to MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
                                 1f to Color.Transparent
                             ),
                             CircleShape
@@ -1301,12 +1359,27 @@ private fun TodayScreen(
                             .fillMaxWidth()
                             .padding(28.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
+                        val infiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition()
+                        val pulseScale by infiniteTransition.animateFloat(
+                            initialValue = 0.95f,
+                            targetValue = 1.05f,
+                            animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                                animation = androidx.compose.animation.core.tween(1500, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+                                repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
+                            ),
+                            label = "empty_icon_pulse"
+                        )
                         Surface(
                             shape = CircleShape,
                             color = MaterialTheme.colorScheme.primaryContainer,
-                            modifier = Modifier.size(48.dp)
+                            modifier = Modifier
+                                .size(48.dp)
+                                .graphicsLayer {
+                                    scaleX = pulseScale
+                                    scaleY = pulseScale
+                                }
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(
@@ -1331,12 +1404,14 @@ private fun TodayScreen(
             }
         }
         items(state.habits, key = { it.id }) { habit ->
-            HabitCard(
-                habit = habit,
-                completed = habit.id in state.completedIds,
-                onComplete = { viewModel.complete(habit.id) },
-                onArchive = { viewModel.archive(habit.id) }
-            )
+            Box(Modifier.animateItem()) {
+                HabitCard(
+                    habit = habit,
+                    completed = habit.id in state.completedIds,
+                    onComplete = { viewModel.complete(habit.id) },
+                    onArchive = { viewModel.archive(habit.id) }
+                )
+            }
         }
     }
 }
@@ -1347,15 +1422,11 @@ private fun TodayScreen(
  */
 @Composable
 private fun DailyTreeCard(state: TodayUiState, tasks: List<TaskEntity>) {
-    val haptics = LocalHapticFeedback.current
-    var extraWater by remember { mutableIntStateOf(0) }
-    var isWatering by remember { mutableStateOf(false) }
-
     val completedHabits = state.completedCount
     val completedTasks = tasks.count { it.completed }
     val totalItems = (state.habits.size + tasks.size).coerceAtLeast(1)
     val completedItems = completedHabits + completedTasks
-    val waterDrops = (completedHabits * 25) + (completedTasks * 20) + extraWater
+    val waterDrops = (completedHabits * 25) + (completedTasks * 20)
     val growthRatio = (completedItems.toFloat() / totalItems).coerceIn(0f, 1f)
 
     val animatedGrowth by animateFloatAsState(
@@ -1433,12 +1504,7 @@ private fun DailyTreeCard(state: TodayUiState, tasks: List<TaskEntity>) {
                 contentAlignment = Alignment.Center
             ) {
                 Canvas(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .graphicsLayer {
-                            scaleX = if (isWatering) 1.15f else 1.0f
-                            scaleY = if (isWatering) 1.15f else 1.0f
-                        }
+                    modifier = Modifier.fillMaxSize()
                 ) {
                     val centerX = size.width / 2f
                     val centerY = size.height * 0.82f
@@ -1467,25 +1533,6 @@ private fun DailyTreeCard(state: TodayUiState, tasks: List<TaskEntity>) {
                     trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
                     strokeCap = StrokeCap.Round
                 )
-
-                Spacer(Modifier.width(12.dp))
-
-                FilledTonalButton(
-                    onClick = {
-                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                        extraWater += 50
-                        isWatering = true
-                    },
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Icon(
-                        Icons.Rounded.WaterDrop,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(Modifier.width(4.dp))
-                    Text("Test Water 💧")
-                }
             }
         }
     }
@@ -1521,7 +1568,7 @@ private fun GardenScreen(state: TodayUiState, tasks: List<TaskEntity>) {
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 "Daily Growth Garden",
                                 style = MaterialTheme.typography.titleMedium,
@@ -1533,12 +1580,33 @@ private fun GardenScreen(state: TodayUiState, tasks: List<TaskEntity>) {
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                        AssistChip(
-                            onClick = {},
-                            label = { Text("${pastDays.count { (state.taskActivity[it] ?: 0) > 0 }} days with growth") },
-                            leadingIcon = { Icon(Icons.Rounded.LocalFlorist, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                    Column(
+                        horizontalAlignment = Alignment.End,
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            "${pastDays.count { (state.taskActivity[it] ?: 0) > 0 }}",
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
                         )
+                        Text(
+                            "days with",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Rounded.LocalFlorist, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                "growth",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
                     }
+                }
 
                     // View Mode Switcher (2.5D Isometric vs 3D Perspective)
                     Row(
@@ -2462,13 +2530,29 @@ private fun HabitCard(
         ),
         label = "check_scale"
     )
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val cardScale by animateFloatAsState(
+        targetValue = if (isPressed) 0.96f else 1f,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "habit_card_scale"
+    )
 
     GlassSurface(
         modifier = Modifier
             .fillMaxWidth()
-            .animateContentSize(),
+            .animateContentSize()
+            .graphicsLayer {
+                scaleX = cardScale
+                scaleY = cardScale
+            }
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = { }
+            ),
         cornerRadius = LiquidGlassTokens.cardRadius,
-        elevation = if (completed) 0.dp else 4.dp,
+        elevation = if (completed) 0.dp else (if (isPressed) 2.dp else 4.dp),
         tint = if (completed) MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.8f) else MaterialTheme.colorScheme.surface.copy(alpha = 0.94f)
     ) {
         Row(
@@ -2626,10 +2710,29 @@ private fun TaskCard(
     onArchive: () -> Unit
 ) {
     val haptics = LocalHapticFeedback.current
+    
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val cardScale by animateFloatAsState(
+        targetValue = if (isPressed) 0.96f else 1f,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "task_card_scale"
+    )
+
     GlassSurface(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .graphicsLayer {
+                scaleX = cardScale
+                scaleY = cardScale
+            }
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = { /* Just for the tactile press effect, actual action is on the check button */ }
+            ),
         cornerRadius = LiquidGlassTokens.cardRadius,
-        elevation = if (task.completed) 0.dp else 4.dp,
+        elevation = if (task.completed) 0.dp else (if (isPressed) 2.dp else 4.dp),
         tint = if (task.completed) MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.8f) else MaterialTheme.colorScheme.surface.copy(alpha = 0.94f)
     ) {
         Row(
@@ -2749,11 +2852,23 @@ private fun AllTasksScreen(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
+                        val infiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition()
+                        val floatOffset by infiniteTransition.animateFloat(
+                            initialValue = -4f,
+                            targetValue = 4f,
+                            animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                                animation = androidx.compose.animation.core.tween(1200, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+                                repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
+                            ),
+                            label = "empty_icon_float"
+                        )
                         Icon(
                             Icons.Rounded.AutoAwesome,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(32.dp)
+                            modifier = Modifier
+                                .size(32.dp)
+                                .offset(y = floatOffset.dp)
                         )
                         Text("Your task list is clear", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                         Text(
@@ -2767,11 +2882,13 @@ private fun AllTasksScreen(
             }
         } else {
             items(filteredTasks, key = { it.id }) { task ->
-                TaskCard(
-                    task = task,
-                    onComplete = { viewModel.setTaskCompleted(task.id, !task.completed) },
-                    onArchive = { viewModel.archiveTask(task.id) }
-                )
+                Box(Modifier.animateItem()) {
+                    TaskCard(
+                        task = task,
+                        onComplete = { viewModel.setTaskCompleted(task.id, !task.completed) },
+                        onArchive = { viewModel.archiveTask(task.id) }
+                    )
+                }
             }
         }
     }
@@ -2841,7 +2958,9 @@ private fun PlannerScreen(tasks: List<TaskEntity>) {
                 Text("Suggested timeline", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
             }
             items(result.scheduled, key = { it.task.id }) { block ->
-                PlannerBlockCard(block.start, block.end, block.task.title, block.task.category)
+                Box(Modifier.animateItem()) {
+                    PlannerBlockCard(block.start, block.end, block.task.title, block.task.category)
+                }
             }
         }
     }
@@ -2909,10 +3028,28 @@ private fun PlannerBlockCard(start: LocalDateTime, end: LocalDateTime, title: St
             )
         }
 
+        val interactionSource = remember { MutableInteractionSource() }
+        val isPressed by interactionSource.collectIsPressedAsState()
+        val cardScale by animateFloatAsState(
+            targetValue = if (isPressed) 0.96f else 1f,
+            animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+            label = "planner_card_scale"
+        )
+
         GlassSurface(
-            modifier = Modifier.weight(1f),
+            modifier = Modifier
+                .weight(1f)
+                .graphicsLayer {
+                    scaleX = cardScale
+                    scaleY = cardScale
+                }
+                .clickable(
+                    interactionSource = interactionSource,
+                    indication = null,
+                    onClick = { }
+                ),
             cornerRadius = LiquidGlassTokens.smallRadius,
-            elevation = 2.dp
+            elevation = if (isPressed) 1.dp else 2.dp
         ) {
             Row(
                 modifier = Modifier.padding(14.dp),

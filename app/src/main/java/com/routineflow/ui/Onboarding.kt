@@ -6,17 +6,26 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -49,6 +58,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
@@ -206,25 +216,44 @@ fun OnboardingScreen(
                 .fillMaxSize()
                 .widthIn(max = 680.dp)
                 .align(Alignment.Center)
-                .padding(horizontal = 20.dp, vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .padding(horizontal = 24.dp, vertical = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("RoutineFlow", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                if (page < 5) TextButton(onClick = { page = 5 }) { Text("Skip") }
+                Text(
+                    "RoutineFlow", 
+                    style = MaterialTheme.typography.titleLarge, 
+                    fontWeight = FontWeight.ExtraBold,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+                if (page < 5) {
+                    TextButton(onClick = { page = 5 }) { 
+                        Text("Skip Intro", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary) 
+                    }
+                }
             }
+            
             LinearProgressIndicator(
                 progress = { (page + 1) / 9f },
-                Modifier.fillMaxWidth(),
-                color = MaterialTheme.colorScheme.primary
+                Modifier
+                    .fillMaxWidth()
+                    .height(6.dp)
+                    .clip(RoundedCornerShape(3.dp)),
+                color = MaterialTheme.colorScheme.primary,
+                trackColor = MaterialTheme.colorScheme.surfaceContainerHighest
             )
+            
             AnimatedContent(
                 targetState = page,
                 modifier = Modifier.weight(1f),
+                transitionSpec = {
+                    (fadeIn() + androidx.compose.animation.slideInHorizontally { it / 4 } + androidx.compose.animation.scaleIn(initialScale = 0.95f)) togetherWith
+                    (fadeOut() + androidx.compose.animation.slideOutHorizontally { -it / 4 } + androidx.compose.animation.scaleOut(targetScale = 0.95f))
+                },
                 label = "onboarding_page"
             ) { current ->
                 when {
@@ -277,23 +306,35 @@ fun OnboardingScreen(
                 Button(
                     onClick = { page++ },
                     Modifier.fillMaxWidth(),
-                    contentPadding = PaddingValues(vertical = 15.dp)
+                    contentPadding = PaddingValues(vertical = 18.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
+                    )
                 ) {
-                    Text(if (page == 0) "Get started" else "Continue")
+                    Text(if (page == 0) "Get started" else "Continue", fontWeight = FontWeight.Bold)
                     Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = null)
                 }
             }
         }
     }
+    
     editing?.let { current ->
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { editing = null },
-            title = { Text("Edit suggestion") },
+            title = { Text("Edit suggestion", fontWeight = FontWeight.Bold) },
             text = {
-                OutlinedTextField(editValue, { editValue = it }, label = { Text("Task") }, singleLine = true)
+                OutlinedTextField(
+                    editValue, 
+                    { editValue = it }, 
+                    label = { Text("Task") }, 
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp)
+                )
             },
             confirmButton = {
-                TextButton(
+                Button(
                     onClick = {
                         if (editValue.isNotBlank()) {
                             selected = selected.map {
@@ -301,8 +342,14 @@ fun OnboardingScreen(
                             }
                         }
                         editing = null
-                    }
-                ) { Text("Done") }
+                    },
+                    shape = RoundedCornerShape(12.dp)
+                ) { Text("Done", fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = {
+                TextButton(onClick = { editing = null }) {
+                    Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
         )
     }
@@ -323,26 +370,55 @@ private fun IntroPage(page: Int) {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         GlassSurface(
-            Modifier.fillMaxWidth().padding(bottom = 28.dp),
+            Modifier.fillMaxWidth().padding(bottom = 36.dp),
             cornerRadius = 32.dp,
-            tint = MaterialTheme.colorScheme.primaryContainer.copy(alpha = .55f)
+            elevation = 12.dp,
+            tint = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f)
         ) {
             Column(
-                Modifier.fillMaxWidth().padding(28.dp),
+                Modifier.fillMaxWidth().padding(32.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
-                Icon(Icons.Rounded.AutoAwesome, null, Modifier.size(58.dp), tint = MaterialTheme.colorScheme.primary)
+                Icon(
+                    Icons.Rounded.AutoAwesome, 
+                    null, 
+                    Modifier.size(72.dp), 
+                    tint = MaterialTheme.colorScheme.primary
+                )
                 Text(
                     when (page) { 0 -> "A calmer way to move forward"; 1 -> "Clarity for the next step"; 2 -> "Progress without pressure"; 3 -> "A fresh start is always possible"; else -> "Built around your life" },
-                    style = MaterialTheme.typography.titleLarge,
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.ExtraBold,
                     textAlign = TextAlign.Center
                 )
-                Text("✓  Today  ·  3 tasks  ·  40 XP", color = MaterialTheme.colorScheme.primary)
+                androidx.compose.material3.Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
+                ) {
+                    Text(
+                        "✓  Today  ·  3 tasks  ·  40 XP", 
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                    )
+                }
             }
         }
-        Text(content.first, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
-        Text(content.second, Modifier.padding(top = 10.dp), textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(
+            content.first, 
+            style = MaterialTheme.typography.headlineLarge, 
+            fontWeight = FontWeight.ExtraBold, 
+            textAlign = TextAlign.Center,
+            color = MaterialTheme.colorScheme.onBackground
+        )
+        Text(
+            content.second, 
+            Modifier.padding(top = 16.dp), 
+            textAlign = TextAlign.Center, 
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodyLarge
+        )
     }
 }
 
@@ -353,32 +429,39 @@ private fun CategoryPage(
     onSkip: () -> Unit,
     onNext: () -> Unit
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Text("What matters to you?", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-        Text("Pick any areas you want to organize. You can change this later.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 8.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Text("What matters to you?", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.ExtraBold)
+        Text("Pick any areas you want to organize. You can change this later.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyLarge)
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 12.dp)) {
             items(onboardingCategories, key = { it.id }) { category ->
                 val checked = category.id in selected
-                val color by animateColorAsState(
-                    if (checked) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainer,
-                    label = "category_color"
-                )
-                OutlinedCard(
-                    onClick = { onToggle(category.id) },
-                    modifier = Modifier.fillMaxWidth().semantics { role = Role.Checkbox; contentDescription = category.label },
-                    colors = CardDefaults.outlinedCardColors(containerColor = color)
+                GlassSurface(
+                    modifier = Modifier.fillMaxWidth().clickable { onToggle(category.id) }.semantics { role = Role.Checkbox; contentDescription = category.label },
+                    cornerRadius = 16.dp,
+                    elevation = if (checked) 2.dp else 4.dp,
+                    tint = if (checked) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.8f) else MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)
                 ) {
-                    Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text(category.emoji, style = MaterialTheme.typography.titleLarge)
-                        Text(category.label, Modifier.weight(1f).padding(horizontal = 14.dp))
+                    Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(category.emoji, style = MaterialTheme.typography.headlineSmall)
+                        Text(
+                            category.label, 
+                            Modifier.weight(1f).padding(horizontal = 16.dp),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = if (checked) FontWeight.Bold else FontWeight.SemiBold,
+                            color = if (checked) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                        )
                         if (checked) Icon(Icons.Rounded.Check, null, tint = MaterialTheme.colorScheme.primary)
                     }
                 }
             }
         }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            TextButton(onClick = onSkip) { Text("Skip for now") }
-            Button(onClick = onNext) { Text("Continue") }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            TextButton(onClick = onSkip) { Text("Skip for now", color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.SemiBold) }
+            Button(
+                onClick = onNext,
+                shape = RoundedCornerShape(16.dp),
+                contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp)
+            ) { Text("Continue", fontWeight = FontWeight.Bold) }
         }
     }
 }
@@ -396,33 +479,59 @@ private fun TaskSetupPage(
     onNext: () -> Unit
 ) {
     val suggestions = onboardingTaskTemplates(categories)
-    LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 12.dp)) {
+    LazyColumn(verticalArrangement = Arrangement.spacedBy(14.dp), contentPadding = PaddingValues(bottom = 12.dp)) {
         item {
-            Text("Let's build your first plan.", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-            Text("Start with a few suggestions, customize them, or add your own tasks.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text("${selected.size} tasks selected", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+            Text("Let's build your first plan.", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.ExtraBold)
+            Text("Start with a few suggestions, customize them, or add your own tasks.", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyLarge)
+            Text("${selected.size} tasks selected", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 8.dp))
         }
         items(suggestions, key = { it.title }) { template ->
             TaskTemplateRow(template, template in selected, onToggle, onEdit)
         }
         item {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                OutlinedTextField(
-                    value = customTask,
-                    onValueChange = onCustomTaskChange,
-                    modifier = Modifier.weight(1f),
-                    label = { Text("Add your own task") },
-                    singleLine = true
-                )
-                IconButton(onClick = onAddCustom, modifier = Modifier.size(52.dp)) {
-                    Icon(Icons.Rounded.Check, contentDescription = "Add custom task")
+            GlassSurface(
+                modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                cornerRadius = 20.dp,
+                elevation = 2.dp
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(12.dp)
+                ) {
+                    OutlinedTextField(
+                        value = customTask,
+                        onValueChange = onCustomTaskChange,
+                        modifier = Modifier.weight(1f),
+                        label = { Text("Add your own task") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(14.dp),
+                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.4f),
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.2f),
+                            focusedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
+                            unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
+                        )
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Button(
+                        onClick = onAddCustom, 
+                        modifier = Modifier.size(54.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        contentPadding = PaddingValues(0.dp)
+                    ) {
+                        Icon(Icons.Rounded.Check, contentDescription = "Add custom task")
+                    }
                 }
             }
         }
         item {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                TextButton(onClick = onSkip) { Text("Skip for now") }
-                Button(onClick = onNext) { Text("Review plan") }
+            Row(Modifier.fillMaxWidth().padding(top = 16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                TextButton(onClick = onSkip) { Text("Skip for now", color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.SemiBold) }
+                Button(
+                    onClick = onNext,
+                    shape = RoundedCornerShape(16.dp),
+                    contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp)
+                ) { Text("Review plan", fontWeight = FontWeight.Bold) }
             }
         }
     }
@@ -435,18 +544,23 @@ private fun TaskTemplateRow(
     onToggle: (TaskTemplate) -> Unit,
     onEdit: (TaskTemplate) -> Unit
 ) {
-    OutlinedCard(
-        onClick = { onToggle(template) },
-        modifier = Modifier.fillMaxWidth().semantics { contentDescription = template.title },
-        colors = CardDefaults.outlinedCardColors(
-            containerColor = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainer
-        )
+    GlassSurface(
+        modifier = Modifier.fillMaxWidth().clickable { onToggle(template) }.semantics { contentDescription = template.title },
+        cornerRadius = 16.dp,
+        elevation = if (selected) 0.dp else 4.dp,
+        tint = if (selected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.8f) else MaterialTheme.colorScheme.surface.copy(alpha = 0.94f)
     ) {
-        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(if (selected) Icons.Rounded.Check else Icons.Rounded.PlayArrow, null, tint = MaterialTheme.colorScheme.primary)
-            Text(template.title, Modifier.weight(1f).padding(horizontal = 10.dp))
+            Text(
+                template.title, 
+                Modifier.weight(1f).padding(horizontal = 14.dp),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.SemiBold,
+                color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+            )
             IconButton(onClick = { onEdit(template) }) {
-                Icon(Icons.Rounded.Edit, contentDescription = "Edit ${template.title}")
+                Icon(Icons.Rounded.Edit, contentDescription = "Edit ${template.title}", tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }
@@ -460,27 +574,48 @@ private fun PlanPage(
     saving: Boolean
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text("Your first plan", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+        Text("Your first plan", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.ExtraBold)
         Text(
             if (selected.isEmpty()) "No tasks will be added. You can start whenever you are ready."
             else "${selected.size} task${if (selected.size == 1) "" else "s"} ready to begin.",
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodyLarge
         )
-        LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             items(selected) { task ->
-                GlassSurface(Modifier.fillMaxWidth(), cornerRadius = 16.dp, highlighted = false) {
-                    Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                GlassSurface(Modifier.fillMaxWidth(), cornerRadius = 16.dp, elevation = 2.dp) {
+                    Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Rounded.Check, null, tint = MaterialTheme.colorScheme.primary)
-                        Text(task.title, Modifier.weight(1f).padding(horizontal = 10.dp))
-                        Text(task.category, style = MaterialTheme.typography.labelSmall)
+                        Text(
+                            task.title, 
+                            Modifier.weight(1f).padding(horizontal = 14.dp),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        androidx.compose.material3.Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.surfaceContainerHighest
+                        ) {
+                            Text(
+                                task.category, 
+                                style = MaterialTheme.typography.labelSmall,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
                 }
             }
         }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            TextButton(onClick = onEdit, enabled = !saving) { Text("Edit") }
-            FilledTonalButton(onClick = onConfirm, enabled = !saving) {
-                Text(if (saving) "Saving…" else "Use this plan")
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            TextButton(onClick = onEdit, enabled = !saving) { Text("Edit tasks", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold) }
+            Button(
+                onClick = onConfirm, 
+                enabled = !saving,
+                shape = RoundedCornerShape(16.dp),
+                contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp)
+            ) {
+                Text(if (saving) "Saving…" else "Use this plan", fontWeight = FontWeight.Bold)
             }
         }
 
@@ -499,31 +634,48 @@ private fun WelcomePage(
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Icon(Icons.Rounded.AutoAwesome, null, Modifier.size(64.dp), tint = MaterialTheme.colorScheme.primary)
-        Text("You're ready to begin.", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+        GlassSurface(
+            modifier = Modifier.padding(bottom = 32.dp),
+            cornerRadius = 32.dp,
+            elevation = 16.dp,
+            tint = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.8f)
+        ) {
+            Box(Modifier.padding(32.dp)) {
+                Icon(Icons.Rounded.AutoAwesome, null, Modifier.size(80.dp), tint = MaterialTheme.colorScheme.primary)
+            }
+        }
+        Text("You're ready to begin.", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.ExtraBold, textAlign = TextAlign.Center)
         Text(
             "Your next step doesn't need to be perfect. It just needs to be yours.",
-            Modifier.padding(top = 10.dp),
+            Modifier.padding(top = 16.dp, start = 24.dp, end = 24.dp),
             textAlign = TextAlign.Center,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodyLarge
         )
-        Text(
-            if (selected.isEmpty()) "Start with a blank slate and add a task whenever you're ready."
-            else "${selected.size} task${if (selected.size == 1) "" else "s"} prepared for your first plan.",
-            Modifier.padding(top = 18.dp),
-            color = MaterialTheme.colorScheme.primary,
-            fontWeight = FontWeight.SemiBold
-        )
+        androidx.compose.material3.Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerHighest,
+            modifier = Modifier.padding(top = 24.dp)
+        ) {
+            Text(
+                if (selected.isEmpty()) "Start with a blank slate and add a task whenever you're ready."
+                else "${selected.size} task${if (selected.size == 1) "" else "s"} prepared for your first plan.",
+                Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
+                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.Bold
+            )
+        }
         error?.let {
-            Text(it, Modifier.padding(top = 12.dp), color = MaterialTheme.colorScheme.error)
+            Text(it, Modifier.padding(top = 16.dp), color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
         }
         Button(
             onClick = onOpen,
             enabled = !saving,
-            modifier = Modifier.fillMaxWidth().padding(top = 28.dp),
-            contentPadding = PaddingValues(vertical = 15.dp)
+            modifier = Modifier.fillMaxWidth().padding(top = 40.dp),
+            contentPadding = PaddingValues(vertical = 18.dp),
+            shape = RoundedCornerShape(16.dp)
         ) {
-            Text(if (saving) "Saving…" else "Open RoutineFlow")
+            Text(if (saving) "Saving…" else "Open RoutineFlow", fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.titleLarge)
         }
     }
 }
