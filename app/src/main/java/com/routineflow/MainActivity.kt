@@ -127,6 +127,7 @@ import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -136,6 +137,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -236,15 +238,15 @@ private fun RoutineFlowApp(
                 launch {
                     waterProgress.animateTo(
                         1f,
-                        androidx.compose.animation.core.tween(
-                            durationMillis = 820,
-                            easing = androidx.compose.animation.core.FastOutSlowInEasing
+                        animationSpec = spring(
+                            dampingRatio = 0.58f,
+                            stiffness = 260f
                         )
                     )
                 }
-                delay(420)
+                delay(220)
                 showAddTask = true
-                delay(500)
+                delay(400)
                 addWaterActive = false
             }
         }
@@ -274,6 +276,7 @@ private fun RoutineFlowApp(
     }
 
     Scaffold(
+        floatingActionButtonPosition = androidx.compose.material3.FabPosition.End,
         topBar = {
             val title = when (selectedTab) {
                 0 -> "RoutineFlow"
@@ -384,7 +387,7 @@ private fun RoutineFlowApp(
         },
         floatingActionButton = {
             AnimatedVisibility(
-                visible = selectedTab == 0,
+                visible = true,
                 enter = fadeIn() + expandVertically(),
                 exit = fadeOut() + shrinkVertically()
             ) {
@@ -576,6 +579,7 @@ private fun RoutineFlowApp(
 
     if (showAdd) {
         AddHabitDialog(
+            reducedMotion = reducedMotion,
             onDismiss = { showAdd = false },
             onAdd = { name, category, emoji, reminderMinutes ->
                 viewModel.addHabit(name, category, emoji, reminderMinutes)
@@ -603,98 +607,161 @@ private fun WaterDropletBurst(
     modifier: Modifier = Modifier
 ) {
     if (progress <= 0f) return
+    val primaryColor = MaterialTheme.colorScheme.primary
 
     Canvas(modifier = modifier) {
         val t = progress.coerceIn(0f, 1f)
-        val travel = if (closing) t else t
-        val fade = if (closing) t else (1f - ((t - 0.58f) / 0.42f)).coerceIn(0f, 1f)
+        val fade = if (closing) t else (1f - ((t - 0.65f) / 0.35f)).coerceIn(0f, 1f)
         val baseX = size.width / 2f
-        val baseY = size.height * 0.78f
-        val spread = size.width * 0.16f
-        val height = size.height * 0.7f
-        val dropletColor = Color(0xFF7DD3FC)
-        val highlight = Color.White.copy(alpha = 0.72f * fade)
+        val baseY = size.height * 0.75f
+        val spread = size.width * 0.22f
+        val height = size.height * 0.85f
 
         val droplets = listOf(
-            Triple(-1f, 0.92f, 0.82f),
-            Triple(-0.35f, 1.12f, 1.02f),
-            Triple(0.38f, 1.0f, 0.9f),
-            Triple(1f, 0.78f, 0.72f)
+            Triple(-1.3f, 0.95f, 0.85f),
+            Triple(-0.7f, 1.35f, 1.15f),
+            Triple(-0.2f, 1.10f, 0.95f),
+            Triple(0.2f, 1.45f, 1.30f),
+            Triple(0.7f, 1.20f, 1.05f),
+            Triple(1.25f, 0.90f, 0.80f),
+            Triple(0.0f, 1.60f, 1.40f)
         )
 
-        droplets.forEachIndexed { index, (direction, arc, sizeFactor) ->
-            val localT = (travel * (0.92f + index * 0.025f)).coerceIn(0f, 1f)
-            val x = baseX + direction * spread * localT + kotlin.math.sin(localT * Math.PI).toFloat() * direction * 8f
-            val y = baseY - height * arc * localT + kotlin.math.sin(localT * Math.PI).toFloat() * 5f
-            val radius = (4.2f + sizeFactor * 3.2f) * if (reducedMotion) 0.82f else 1f
-            val alpha = fade * (0.98f - index * 0.06f)
+        // Water Burst Ripple Wave
+        val rippleRadius = size.width * (0.22f + 0.38f * t)
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(
+                    primaryColor.copy(alpha = fade * 0.40f),
+                    primaryColor.copy(alpha = fade * 0.15f),
+                    Color.Transparent
+                ),
+                center = Offset(baseX, baseY),
+                radius = rippleRadius
+            ),
+            radius = rippleRadius,
+            center = Offset(baseX, baseY)
+        )
 
+        // Micro splash spray
+        val microCount = 6
+        for (m in 0 until microCount) {
+            val angle = -Math.PI / 6.0 - (m * Math.PI / 7.0)
+            val microDistance = t * size.width * (0.18f + 0.14f * (m % 3))
+            val mx = baseX + kotlin.math.cos(angle).toFloat() * microDistance
+            val my = baseY + kotlin.math.sin(angle).toFloat() * microDistance
+            val microRadius = (2.0f + (m % 2) * 1.4f) * (1f - t)
             drawCircle(
-                color = Color(0xFF38BDF8).copy(alpha = alpha * 0.16f),
-                radius = radius * 2.5f,
-                center = Offset(x, y + radius * 0.7f)
-            )
-            drawWaterDroplet(
-                center = Offset(x, y),
-                radius = radius,
-                color = dropletColor.copy(alpha = alpha * 0.78f)
-            )
-            drawCircle(
-                color = highlight.copy(alpha = alpha),
-                radius = radius * 0.28f,
-                center = Offset(x - radius * 0.34f, y - radius * 0.38f)
+                color = Color.White.copy(alpha = fade * 0.75f * (1f - t)),
+                radius = microRadius,
+                center = Offset(mx, my)
             )
         }
 
-        drawOval(
-            color = Color(0xFFBAE6FD).copy(alpha = fade * 0.2f),
-            topLeft = Offset(baseX - size.width * 0.2f, baseY - 2f),
-            size = Size(size.width * 0.4f, 7f)
-        )
-        drawCircle(
-            color = Color(0xFFBAE6FD).copy(alpha = fade * 0.28f),
-            radius = size.width * (0.28f + 0.1f * travel),
-            center = Offset(baseX, baseY)
-        )
+        // Calculate positions for metaball liquid bridges
+        val computedSpheres = droplets.mapIndexed { index, (direction, arc, sizeFactor) ->
+            val localT = (t * (0.88f + index * 0.03f)).coerceIn(0f, 1f)
+            val x = baseX + direction * spread * localT + kotlin.math.sin(localT * Math.PI).toFloat() * direction * 12f
+            val y = baseY - height * arc * localT + kotlin.math.sin(localT * Math.PI).toFloat() * 6f
+            val radius = (6f + sizeFactor * 4f) * if (reducedMotion) 0.8f else 1f
+            val alpha = fade * (1f - index * 0.05f)
+            Triple(Offset(x, y), radius, alpha)
+        }
+
+        // Connect nearby liquid droplets with metaball bridges
+        for (i in 0 until computedSpheres.size) {
+            for (j in i + 1 until computedSpheres.size) {
+                val p1 = computedSpheres[i].first
+                val p2 = computedSpheres[j].first
+                val r1 = computedSpheres[i].second
+                val r2 = computedSpheres[j].second
+                val dist = (p1 - p2).getDistance()
+                if (dist > 0.1f && dist < (r1 + r2) * 2.8f) {
+                    val bridgeAlpha = (1f - dist / ((r1 + r2) * 2.8f)) * computedSpheres[i].third * 0.45f
+                    if (bridgeAlpha > 0f) {
+                        drawLine(
+                            color = primaryColor.copy(alpha = bridgeAlpha),
+                            start = p1,
+                            end = p2,
+                            strokeWidth = (r1 + r2) * 0.35f * (1f - dist / ((r1 + r2) * 2.8f)),
+                            cap = StrokeCap.Round
+                        )
+                    }
+                }
+            }
+        }
+
+        // 3D Glass Water Spheres
+        computedSpheres.forEach { (center, radius, alpha) ->
+            drawGlassWaterSphere(
+                center = center,
+                radius = radius,
+                alpha = alpha,
+                primaryColor = primaryColor
+            )
+        }
     }
 }
 
-private fun DrawScope.drawWaterDroplet(
+private fun DrawScope.drawGlassWaterSphere(
     center: Offset,
     radius: Float,
-    color: Color
+    alpha: Float,
+    primaryColor: Color
 ) {
-    val path = Path().apply {
-        moveTo(center.x, center.y - radius * 1.45f)
-        cubicTo(
-            center.x + radius * 0.92f,
-            center.y - radius * 0.42f,
-            center.x + radius * 0.86f,
-            center.y + radius * 0.72f,
-            center.x,
-            center.y + radius
-        )
-        cubicTo(
-            center.x - radius * 0.86f,
-            center.y + radius * 0.72f,
-            center.x - radius * 0.92f,
-            center.y - radius * 0.42f,
-            center.x,
-            center.y - radius * 1.45f
-        )
-        close()
-    }
-    drawPath(
-        path = path,
+    if (radius <= 0f || alpha <= 0f) return
+
+    // Soft Ambient Water Glow
+    drawCircle(
         brush = Brush.radialGradient(
             colors = listOf(
-                Color.White.copy(alpha = 0.42f),
-                color,
-                Color(0xFF0284C7).copy(alpha = color.alpha)
+                primaryColor.copy(alpha = alpha * 0.40f),
+                primaryColor.copy(alpha = alpha * 0.10f),
+                Color.Transparent
             ),
-            center = Offset(center.x - radius * 0.3f, center.y - radius * 0.42f),
-            radius = radius * 1.8f
-        )
+            center = center,
+            radius = radius * 2.2f
+        ),
+        radius = radius * 2.2f,
+        center = center
+    )
+
+    // Liquid Glass Body Fill
+    drawCircle(
+        brush = Brush.radialGradient(
+            colors = listOf(
+                Color.White.copy(alpha = alpha * 0.60f),
+                primaryColor.copy(alpha = alpha * 0.75f),
+                primaryColor.copy(alpha = alpha * 0.35f)
+            ),
+            center = Offset(center.x - radius * 0.3f, center.y - radius * 0.3f),
+            radius = radius * 1.2f
+        ),
+        radius = radius,
+        center = center
+    )
+
+    // Specular Light Reflection Border Ring
+    drawCircle(
+        brush = Brush.linearGradient(
+            colors = listOf(
+                Color.White.copy(alpha = alpha * 0.85f),
+                Color.White.copy(alpha = alpha * 0.15f),
+                Color.Transparent
+            ),
+            start = Offset(center.x - radius, center.y - radius),
+            end = Offset(center.x + radius, center.y + radius)
+        ),
+        radius = radius,
+        center = center,
+        style = Stroke(width = radius * 0.18f)
+    )
+
+    // Specular Highlight Spot
+    drawCircle(
+        color = Color.White.copy(alpha = alpha * 0.95f),
+        radius = radius * 0.28f,
+        center = Offset(center.x - radius * 0.35f, center.y - radius * 0.38f)
     )
 }
 
@@ -2322,7 +2389,8 @@ private fun HabitCard(
                 Text(
                     text = habit.name,
                     style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = if (completed) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+                    textDecoration = if (completed) TextDecoration.LineThrough else TextDecoration.None
                 )
                 Spacer(Modifier.height(2.dp))
                 AssistChip(
@@ -2485,18 +2553,24 @@ private fun TaskCard(
                 Text(
                     text = task.title,
                     style = MaterialTheme.typography.titleMedium,
-                    color = if (task.completed) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
+                    color = if (task.completed) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+                    textDecoration = if (task.completed) TextDecoration.LineThrough else TextDecoration.None
                 )
                 if (task.description.isNotBlank()) {
                     Text(
                         text = task.description,
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textDecoration = if (task.completed) TextDecoration.LineThrough else TextDecoration.None
                     )
                 }
             }
             IconButton(onClick = onArchive) {
-                Icon(Icons.Rounded.DeleteOutline, contentDescription = "Archive task")
+                Icon(
+                    Icons.Rounded.DeleteOutline,
+                    contentDescription = "Archive task",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }
@@ -2658,20 +2732,72 @@ private fun PlannerSummaryCard(result: PlannerResult) {
 
 @Composable
 private fun PlannerBlockCard(start: LocalDateTime, end: LocalDateTime, title: String, category: String) {
-    GlassSurface(
+    Row(
         modifier = Modifier.fillMaxWidth(),
-        cornerRadius = LiquidGlassTokens.smallRadius,
-        elevation = 0.dp
+        verticalAlignment = Alignment.Top
     ) {
-        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column {
-                Text(
-                    "${start.format(DateTimeFormatter.ofPattern("hh:mm a"))} - ${end.format(DateTimeFormatter.ofPattern("hh:mm a"))}",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Text(category, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(end = 12.dp, top = 6.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(12.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primary)
+                    .border(2.dp, MaterialTheme.colorScheme.primaryContainer, CircleShape)
+            )
+            Box(
+                modifier = Modifier
+                    .width(2.dp)
+                    .height(54.dp)
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                            )
+                        )
+                    )
+            )
+        }
+
+        GlassSurface(
+            modifier = Modifier.weight(1f),
+            cornerRadius = LiquidGlassTokens.smallRadius,
+            elevation = 2.dp
+        ) {
+            Row(
+                modifier = Modifier.padding(14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        category,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
+                ) {
+                    Text(
+                        text = "${start.format(DateTimeFormatter.ofPattern("hh:mm a", Locale.getDefault()))} - ${end.format(DateTimeFormatter.ofPattern("hh:mm a", Locale.getDefault()))}",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                    )
+                }
             }
         }
     }
@@ -3003,104 +3129,110 @@ private fun SettingsScreen(
     reducedMotion: Boolean,
     onReducedMotionChange: (Boolean) -> Unit
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
+    AdaptiveLazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        GlassSurface(
-            modifier = Modifier.fillMaxWidth(),
-            cornerRadius = 22.dp,
-            highlighted = true,
-            elevation = 8.dp
-        ) {
-            Column {
+        item {
+            Text("Settings", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+        }
+        item {
+            GlassSurface(
+                modifier = Modifier.fillMaxWidth(),
+                cornerRadius = 22.dp,
+                highlighted = true,
+                elevation = 8.dp
+            ) {
+                Column {
+                    ListItem(
+                        headlineContent = { Text("Dark Theme") },
+                        supportingContent = {
+                            Text(if (darkMode) "Dark theme enabled" else "Light theme enabled")
+                        },
+                        leadingContent = {
+                            Icon(
+                                if (darkMode) Icons.Rounded.DarkMode else Icons.Rounded.LightMode,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        },
+                        trailingContent = {
+                            Switch(
+                                checked = darkMode,
+                                onCheckedChange = { onThemeToggle() }
+                            )
+                        }
+                    )
+                }
+            }
+        }
+        item {
+            GlassSurface(
+                modifier = Modifier.fillMaxWidth(),
+                cornerRadius = 22.dp,
+                highlighted = false,
+                elevation = 2.dp
+            ) {
+                Column {
+                    ListItem(
+                        headlineContent = { Text("Gentle Reminders") },
+                        supportingContent = { Text("Daily inspiring quote notifications") },
+                        leadingContent = {
+                            Icon(
+                                Icons.Rounded.NotificationsActive,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    )
+                    ListItem(
+                        headlineContent = { Text("Sacred Tree Garden") },
+                        supportingContent = { Text("2.5D & 3D Interactive Forest Gaming Mode") },
+                        leadingContent = {
+                            Icon(
+                                Icons.Rounded.Palette,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.secondary
+                            )
+                        }
+                    )
+                }
+            }
+        }
+        item {
+            GlassSurface(
+                modifier = Modifier.fillMaxWidth(),
+                cornerRadius = 22.dp,
+                highlighted = true,
+                elevation = 8.dp
+            ) {
                 ListItem(
-                    headlineContent = { Text("Dark Theme") },
+                    headlineContent = { Text("Reduce Motion") },
                     supportingContent = {
-                        Text(if (darkMode) "Dark theme enabled" else "Light theme enabled")
+                        Text(
+                            if (reducedMotion) {
+                                "Animations are minimized"
+                            } else {
+                                "Use spring motion and screen transitions"
+                            }
+                        )
                     },
                     leadingContent = {
                         Icon(
-                            if (darkMode) Icons.Rounded.DarkMode else Icons.Rounded.LightMode,
+                            Icons.Rounded.AutoAwesome,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.primary
                         )
                     },
                     trailingContent = {
                         Switch(
-                            checked = darkMode,
-                            onCheckedChange = { onThemeToggle() }
+                            checked = reducedMotion,
+                            onCheckedChange = onReducedMotionChange
                         )
                     }
                 )
             }
-        }
-
-        GlassSurface(
-            modifier = Modifier.fillMaxWidth(),
-            cornerRadius = 22.dp,
-            highlighted = false,
-            elevation = 0.dp
-        ) {
-            Column {
-                ListItem(
-                    headlineContent = { Text("Gentle Reminders") },
-                    supportingContent = { Text("Daily inspiring quote notifications") },
-                    leadingContent = {
-                        Icon(
-                            Icons.Rounded.NotificationsActive,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                )
-                ListItem(
-                    headlineContent = { Text("Sacred Tree Garden") },
-                    supportingContent = { Text("2.5D & 3D Interactive Forest Gaming Mode") },
-                    leadingContent = {
-                        Icon(
-                            Icons.Rounded.Palette,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.secondary
-                        )
-                    }
-                )
-            }
-        }
-
-        GlassSurface(
-            modifier = Modifier.fillMaxWidth(),
-            cornerRadius = 22.dp,
-            highlighted = true,
-            elevation = 8.dp
-        ) {
-            ListItem(
-                headlineContent = { Text("Reduce Motion") },
-                supportingContent = {
-                    Text(
-                        if (reducedMotion) {
-                            "Animations are minimized"
-                        } else {
-                            "Use spring motion and screen transitions"
-                        }
-                    )
-                },
-                leadingContent = {
-                    Icon(
-                        Icons.Rounded.AutoAwesome,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                },
-                trailingContent = {
-                    Switch(
-                        checked = reducedMotion,
-                        onCheckedChange = onReducedMotionChange
-                    )
-                }
-            )
         }
     }
 }
@@ -3131,6 +3263,7 @@ private val CATEGORY_PRESETS = listOf(
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
 private fun AddHabitDialog(
+    reducedMotion: Boolean,
     onDismiss: () -> Unit,
     onAdd: (String, String, String, Int?) -> Unit
 ) {
@@ -3138,154 +3271,245 @@ private fun AddHabitDialog(
     var category by remember { mutableStateOf("Wellness") }
     var emoji by remember { mutableStateOf("✨") }
     var reminder by remember { mutableStateOf("") }
+    val entryProgress = remember { androidx.compose.animation.core.Animatable(0f) }
+    val revealAccent = MaterialTheme.colorScheme.primary
 
-    Dialog(onDismissRequest = onDismiss) {
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        if (reducedMotion) {
+            entryProgress.snapTo(1f)
+        } else {
+            entryProgress.animateTo(
+                1f,
+                animationSpec = spring(
+                    dampingRatio = 0.54f,
+                    stiffness = 220f
+                )
+            )
+        }
+    }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
         Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(LiquidGlassTokens.cardRadius))
-                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.75f))
+                .fillMaxSize()
+                .padding(horizontal = 16.dp, vertical = 24.dp),
+            contentAlignment = Alignment.BottomCenter
         ) {
-            GlassSurface(
-                modifier = Modifier.fillMaxWidth(),
-                cornerRadius = LiquidGlassTokens.cardRadius,
-                elevation = LiquidGlassTokens.floatingElevation,
-                tint = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f)
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(24.dp),
-                    verticalArrangement = Arrangement.spacedBy(20.dp)
-                ) {
-                    Text(
-                        text = "Add New Habit",
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text(
-                            text = "Quick templates",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            PRESET_HABITS.forEach { preset ->
-                                SuggestionChip(
-                                    onClick = {
-                                        onAdd(preset.name, preset.category, preset.emoji, preset.reminderMinutes)
-                                    },
-                                    label = { Text("${preset.emoji} ${preset.name}") },
-                                    shape = RoundedCornerShape(12.dp)
-                                )
-                            }
-                        }
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 92.dp)
+                    .graphicsLayer {
+                        val settledProgress = entryProgress.value
+                        val stretchY = androidx.compose.ui.util.lerp(0.88f, 1f, ((settledProgress - 0.05f) / 0.95f).coerceIn(0f, 1f))
+                        val stretchX = androidx.compose.ui.util.lerp(0.92f, 1f, settledProgress)
+                        scaleX = stretchX
+                        scaleY = stretchY
+                        translationY = androidx.compose.ui.util.lerp(54f, 0f, settledProgress)
+                        alpha = androidx.compose.ui.util.lerp(0.15f, 1f, settledProgress)
+                        transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.85f, 1f)
                     }
-
-                    GlassInput(
-                        value = name,
-                        onValueChange = { name = it },
-                        label = "Habit name",
-                        placeholder = "e.g. Read 15 pages"
-                    )
-
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text(
-                            text = "Category & Icon",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            CATEGORY_PRESETS.forEach { (catName, catEmoji) ->
-                                val selected = category == catName
-                                FilterChip(
-                                    selected = selected,
-                                    onClick = {
-                                        category = catName
-                                        emoji = catEmoji
-                                    },
-                                    label = { Text("$catEmoji $catName") },
-                                    shape = RoundedCornerShape(12.dp),
-                                    colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                                        selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    .drawWithContent {
+                        val revealTop = size.height * (1f - entryProgress.value)
+                        clipRect(top = revealTop) {
+                            this@drawWithContent.drawContent()
+                        }
+                        if (!reducedMotion && entryProgress.value > 0f && entryProgress.value < 1.05f) {
+                            val edgeAlpha = (1.05f - entryProgress.value).coerceIn(0f, 1f)
+                            if (edgeAlpha > 0f) {
+                                val wavePath = Path().apply {
+                                    val waveHeight = 12f * (1f - entryProgress.value.coerceIn(0f, 1f))
+                                    val topY = revealTop
+                                    moveTo(0f, topY)
+                                    val steps = 16
+                                    val stepWidth = size.width / steps
+                                    for (i in 0..steps) {
+                                        val x = i * stepWidth
+                                        val y = topY + kotlin.math.sin(i * 0.55 + entryProgress.value * 10.0).toFloat() * waveHeight
+                                        lineTo(x, y)
+                                    }
+                                    lineTo(size.width, size.height)
+                                    lineTo(0f, size.height)
+                                    close()
+                                }
+                                drawPath(
+                                    path = wavePath,
+                                    brush = Brush.verticalGradient(
+                                        colors = listOf(
+                                            revealAccent.copy(alpha = 0.55f * edgeAlpha),
+                                            Color.White.copy(alpha = 0.85f * edgeAlpha),
+                                            revealAccent.copy(alpha = 0.15f * edgeAlpha),
+                                            Color.Transparent
+                                        ),
+                                        startY = revealTop - 12f,
+                                        endY = revealTop + 24f
                                     )
                                 )
                             }
                         }
                     }
-
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        GlassInput(
-                            value = emoji,
-                            onValueChange = { emoji = it.take(2) },
-                            label = "Emoji",
-                            modifier = Modifier.weight(0.3f)
-                        )
-                        GlassInput(
-                            value = category,
-                            onValueChange = { category = it },
-                            label = "Category",
-                            modifier = Modifier.weight(0.7f)
-                        )
-                    }
-
-                    GlassInput(
-                        value = reminder,
-                        onValueChange = { reminder = it.take(5) },
-                        label = "Daily reminder (HH:mm, optional)",
-                        placeholder = "08:30"
-                    )
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
-                        horizontalArrangement = Arrangement.End,
-                        verticalAlignment = Alignment.CenterVertically
+                    .clip(RoundedCornerShape(LiquidGlassTokens.cardRadius))
+                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.75f))
+            ) {
+                GlassSurface(
+                    modifier = Modifier.fillMaxWidth(),
+                    cornerRadius = LiquidGlassTokens.cardRadius,
+                    elevation = LiquidGlassTokens.floatingElevation,
+                    tint = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(24.dp),
+                        verticalArrangement = Arrangement.spacedBy(20.dp)
                     ) {
-                        TextButton(
-                            onClick = onDismiss,
-                            shape = RoundedCornerShape(16.dp)
+                        Text(
+                            text = "Add New Habit",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.liquidMenuReveal(entryProgress.value, 0.08f, 0.42f, reducedMotion)
+                        )
+
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier.liquidMenuReveal(entryProgress.value, 0.16f, 0.5f, reducedMotion)
                         ) {
-                            Text("Cancel", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold)
-                        }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Button(
-                            onClick = {
-                                val parts = reminder.split(":")
-                                val hour = parts.getOrNull(0)?.toIntOrNull()
-                                val minute = parts.getOrNull(1)?.toIntOrNull()
-                                val minutes = if (
-                                    parts.size == 2 &&
-                                    hour != null && hour in 0..23 &&
-                                    minute != null && minute in 0..59
-                                ) {
-                                    hour * 60 + minute
-                                } else {
-                                    null
-                                }
-                                onAdd(name, category, emoji, minutes)
-                            },
-                            enabled = name.isNotBlank() && (
-                                reminder.isBlank() ||
-                                    reminder.matches(Regex("([01]\\d|2[0-3]):[0-5]\\d"))
-                                ),
-                            shape = RoundedCornerShape(16.dp),
-                            colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.primary,
-                                contentColor = MaterialTheme.colorScheme.onPrimary
+                            Text(
+                                text = "Quick templates",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.SemiBold
                             )
+                            FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                PRESET_HABITS.forEach { preset ->
+                                    SuggestionChip(
+                                        onClick = {
+                                            onAdd(preset.name, preset.category, preset.emoji, preset.reminderMinutes)
+                                        },
+                                        label = { Text("${preset.emoji} ${preset.name}") },
+                                        shape = RoundedCornerShape(12.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        GlassInput(
+                            value = name,
+                            onValueChange = { name = it },
+                            label = "Habit name",
+                            placeholder = "e.g. Read 15 pages",
+                            modifier = Modifier.liquidMenuReveal(entryProgress.value, 0.25f, 0.6f, reducedMotion)
+                        )
+
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier.liquidMenuReveal(entryProgress.value, 0.34f, 0.7f, reducedMotion)
                         ) {
-                            Text("Add habit", fontWeight = FontWeight.Bold)
+                            Text(
+                                text = "Category & Icon",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                CATEGORY_PRESETS.forEach { (catName, catEmoji) ->
+                                    val selected = category == catName
+                                    FilterChip(
+                                        selected = selected,
+                                        onClick = {
+                                            category = catName
+                                            emoji = catEmoji
+                                        },
+                                        label = { Text("$catEmoji $catName") },
+                                        shape = RoundedCornerShape(12.dp),
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                        )
+                                    )
+                                }
+                            }
+                        }
+
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            modifier = Modifier.liquidMenuReveal(entryProgress.value, 0.42f, 0.8f, reducedMotion)
+                        ) {
+                            GlassInput(
+                                value = emoji,
+                                onValueChange = { emoji = it.take(2) },
+                                label = "Emoji",
+                                modifier = Modifier.weight(0.3f)
+                            )
+                            GlassInput(
+                                value = category,
+                                onValueChange = { category = it },
+                                label = "Category",
+                                modifier = Modifier.weight(0.7f)
+                            )
+                        }
+
+                        GlassInput(
+                            value = reminder,
+                            onValueChange = { reminder = it.take(5) },
+                            label = "Daily reminder (HH:mm, optional)",
+                            placeholder = "08:30",
+                            modifier = Modifier.liquidMenuReveal(entryProgress.value, 0.48f, 0.9f, reducedMotion)
+                        )
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 16.dp)
+                                .liquidMenuReveal(entryProgress.value, 0.54f, 0.98f, reducedMotion),
+                            horizontalArrangement = Arrangement.End,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            TextButton(
+                                onClick = onDismiss,
+                                shape = RoundedCornerShape(16.dp)
+                            ) {
+                                Text("Cancel", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.SemiBold)
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Button(
+                                onClick = {
+                                    val parts = reminder.split(":")
+                                    val hour = parts.getOrNull(0)?.toIntOrNull()
+                                    val minute = parts.getOrNull(1)?.toIntOrNull()
+                                    val minutes = if (
+                                        parts.size == 2 &&
+                                        hour != null && hour in 0..23 &&
+                                        minute != null && minute in 0..59
+                                    ) {
+                                        hour * 60 + minute
+                                    } else {
+                                        null
+                                    }
+                                    onAdd(name, category, emoji, minutes)
+                                },
+                                enabled = name.isNotBlank() && (
+                                    reminder.isBlank() ||
+                                        reminder.matches(Regex("([01]\\d|2[0-3]):[0-5]\\d"))
+                                    ),
+                                shape = RoundedCornerShape(16.dp),
+                                colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.primary,
+                                    contentColor = MaterialTheme.colorScheme.onPrimary
+                                )
+                            ) {
+                                Text("Add habit", fontWeight = FontWeight.Bold)
+                            }
                         }
                     }
                 }
@@ -3313,9 +3537,9 @@ private fun AddTaskDialog(
         } else {
             entryProgress.animateTo(
                 1f,
-                animationSpec = androidx.compose.animation.core.tween(
-                    durationMillis = 700,
-                    easing = androidx.compose.animation.core.FastOutSlowInEasing
+                animationSpec = spring(
+                    dampingRatio = 0.54f,
+                    stiffness = 220f
                 )
             )
         }
@@ -3336,25 +3560,52 @@ private fun AddTaskDialog(
                     .fillMaxWidth()
                     .padding(bottom = 92.dp)
                     .graphicsLayer {
-                        val settled = androidx.compose.ui.util.lerp(0.94f, 1f, entryProgress.value)
-                        scaleX = settled
-                        scaleY = settled
-                        translationY = androidx.compose.ui.util.lerp(48f, 0f, entryProgress.value)
-                        alpha = androidx.compose.ui.util.lerp(0.2f, 1f, entryProgress.value)
-                        transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1f)
+                        val settledProgress = entryProgress.value
+                        val stretchY = androidx.compose.ui.util.lerp(0.88f, 1f, ((settledProgress - 0.05f) / 0.95f).coerceIn(0f, 1f))
+                        val stretchX = androidx.compose.ui.util.lerp(0.92f, 1f, settledProgress)
+                        scaleX = stretchX
+                        scaleY = stretchY
+                        translationY = androidx.compose.ui.util.lerp(54f, 0f, settledProgress)
+                        alpha = androidx.compose.ui.util.lerp(0.15f, 1f, settledProgress)
+                        transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.85f, 1f)
                     }
                     .drawWithContent {
                         val revealTop = size.height * (1f - entryProgress.value)
                         clipRect(top = revealTop) {
                             this@drawWithContent.drawContent()
                         }
-                        if (!reducedMotion && entryProgress.value < 1f) {
-                            val edgeAlpha = (1f - entryProgress.value).coerceIn(0f, 1f)
-                            drawOval(
-                                color = revealAccent.copy(alpha = 0.24f * edgeAlpha),
-                                topLeft = Offset(size.width * 0.12f, revealTop - 4f),
-                                size = Size(size.width * 0.76f, 8f)
-                            )
+                        if (!reducedMotion && entryProgress.value > 0f && entryProgress.value < 1.05f) {
+                            val edgeAlpha = (1.05f - entryProgress.value).coerceIn(0f, 1f)
+                            if (edgeAlpha > 0f) {
+                                val wavePath = Path().apply {
+                                    val waveHeight = 12f * (1f - entryProgress.value.coerceIn(0f, 1f))
+                                    val topY = revealTop
+                                    moveTo(0f, topY)
+                                    val steps = 16
+                                    val stepWidth = size.width / steps
+                                    for (i in 0..steps) {
+                                        val x = i * stepWidth
+                                        val y = topY + kotlin.math.sin(i * 0.55 + entryProgress.value * 10.0).toFloat() * waveHeight
+                                        lineTo(x, y)
+                                    }
+                                    lineTo(size.width, size.height)
+                                    lineTo(0f, size.height)
+                                    close()
+                                }
+                                drawPath(
+                                    path = wavePath,
+                                    brush = Brush.verticalGradient(
+                                        colors = listOf(
+                                            revealAccent.copy(alpha = 0.55f * edgeAlpha),
+                                            Color.White.copy(alpha = 0.85f * edgeAlpha),
+                                            revealAccent.copy(alpha = 0.15f * edgeAlpha),
+                                            Color.Transparent
+                                        ),
+                                        startY = revealTop - 12f,
+                                        endY = revealTop + 24f
+                                    )
+                                )
+                            }
                         }
                     }
                     .clip(RoundedCornerShape(LiquidGlassTokens.cardRadius))
@@ -3463,19 +3714,23 @@ private fun Modifier.liquidMenuReveal(
 ): Modifier {
     if (reducedMotion) return this
     val normalized = ((progress - start) / (end - start)).coerceIn(0f, 1f)
-    val eased = if (normalized >= 1f) {
-        1f
-    } else {
-        val spring = 1f - (
-            kotlin.math.exp((-7.5f * normalized).toDouble()) *
-                kotlin.math.cos((10.5f * normalized).toDouble())
-            ).toFloat()
-        spring.coerceIn(0f, 1.04f)
+    if (normalized <= 0f) {
+        return graphicsLayer { alpha = 0f }
     }
+
+    val spring = 1f - (
+        kotlin.math.exp((-6.5f * normalized).toDouble()) *
+            kotlin.math.cos((9.0f * normalized).toDouble())
+        ).toFloat()
+    val eased = spring.coerceIn(0f, 1.08f)
+
+    val sloshRotation = kotlin.math.sin(normalized * Math.PI * 2.0).toFloat() * 1.8f * (1f - normalized)
+
     return graphicsLayer {
-        alpha = eased
-        translationY = androidx.compose.ui.util.lerp(30f, 0f, eased.coerceIn(0f, 1f))
-        val scale = androidx.compose.ui.util.lerp(0.95f, 1f, eased.coerceIn(0f, 1f))
+        alpha = eased.coerceAtMost(1f)
+        translationY = androidx.compose.ui.util.lerp(36f, 0f, eased.coerceIn(0f, 1f))
+        rotationZ = sloshRotation
+        val scale = androidx.compose.ui.util.lerp(0.92f, 1f, eased.coerceIn(0f, 1f))
         scaleX = scale
         scaleY = scale
     }
@@ -3490,19 +3745,32 @@ private fun GlassInput(
     placeholder: String = "",
     singleLine: Boolean = true
 ) {
+    var isFocused by remember { mutableStateOf(false) }
+    val focusScale by animateFloatAsState(
+        targetValue = if (isFocused) 1.015f else 1f,
+        animationSpec = spring(dampingRatio = 0.65f, stiffness = 400f),
+        label = "inputFocusScale"
+    )
+
     androidx.compose.material3.OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
         label = { Text(label, fontWeight = FontWeight.Medium) },
         placeholder = { if (placeholder.isNotBlank()) Text(placeholder) },
         singleLine = singleLine,
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .graphicsLayer {
+                scaleX = focusScale
+                scaleY = focusScale
+            }
+            .onFocusChanged { isFocused = it.isFocused },
         shape = RoundedCornerShape(16.dp),
         colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-            focusedContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.4f),
-            unfocusedContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.2f),
-            focusedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
-            unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
+            focusedContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.55f),
+            unfocusedContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.22f),
+            focusedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.85f),
+            unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
         )
     )
 }
