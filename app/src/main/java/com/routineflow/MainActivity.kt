@@ -25,6 +25,8 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -59,14 +61,19 @@ import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Checklist
 import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.DeleteOutline
+import androidx.compose.material.icons.rounded.Event
 import androidx.compose.material.icons.rounded.Insights
 import androidx.compose.material.icons.rounded.LightMode
 import androidx.compose.material.icons.rounded.LocalFlorist
 import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.Palette
+import androidx.compose.material.icons.rounded.SelfImprovement
 import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.SportsEsports
+import androidx.compose.material.icons.rounded.Today
 import androidx.compose.material.icons.rounded.WaterDrop
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
@@ -369,12 +376,12 @@ private fun RoutineFlowApp(
                         ) { tab ->
                             Icon(
                                 imageVector = when(tab) {
-                                    0 -> Icons.Rounded.AutoAwesome
-                                    1 -> Icons.Rounded.Check
-                                    2 -> Icons.Rounded.LocalFlorist
-                                    3 -> Icons.Rounded.Palette
+                                    0 -> Icons.Rounded.Today
+                                    1 -> Icons.Rounded.Checklist
+                                    2 -> Icons.Rounded.Event
+                                    3 -> Icons.Rounded.SportsEsports
                                     4 -> Icons.Rounded.Insights
-                                    5 -> Icons.Rounded.NotificationsActive
+                                    5 -> Icons.Rounded.SelfImprovement
                                     else -> Icons.Rounded.Settings
                                 },
                                 contentDescription = null,
@@ -774,12 +781,12 @@ private fun RoutineFlowDock(
 ) {
     val labels = listOf("Today", "Tasks", "Planner", "Gaming", "Progress", "Focus", "Settings")
     val icons = listOf(
-        Icons.Rounded.Check,
-        Icons.Rounded.Check,
-        Icons.Rounded.AutoAwesome,
-        Icons.Rounded.LocalFlorist,
+        Icons.Rounded.Today,
+        Icons.Rounded.Checklist,
+        Icons.Rounded.Event,
+        Icons.Rounded.SportsEsports,
         Icons.Rounded.Insights,
-        Icons.Rounded.AutoAwesome,
+        Icons.Rounded.SelfImprovement,
         Icons.Rounded.Settings
     )
     val density = LocalDensity.current
@@ -985,12 +992,12 @@ private fun RoutineFlowDockClearPdf(
 ) {
     val labels = listOf("Today", "Tasks", "Planner", "Gaming", "Progress", "Focus", "Settings")
     val icons = listOf(
-        Icons.Rounded.Check,
-        Icons.Rounded.Check,
-        Icons.Rounded.AutoAwesome,
-        Icons.Rounded.LocalFlorist,
+        Icons.Rounded.Today,
+        Icons.Rounded.Checklist,
+        Icons.Rounded.Event,
+        Icons.Rounded.SportsEsports,
         Icons.Rounded.Insights,
-        Icons.Rounded.AutoAwesome,
+        Icons.Rounded.SelfImprovement,
         Icons.Rounded.Settings
     )
     val density = LocalDensity.current
@@ -1244,23 +1251,6 @@ private fun TodayScreen(
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        item {
-            Column {
-                Text(
-                    text = "Good evening",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Text(
-                    text = LocalDate.now().format(
-                        DateTimeFormatter.ofPattern("EEEE, MMM d", Locale.getDefault())
-                    ),
-                    style = MaterialTheme.typography.headlineLarge,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-            }
-        }
-
         item { DailyTreeCard(state, tasks) }
         item { MomentumCard(state) }
         item { TaskSection(tasks, viewModel, onOpenTask) }
@@ -2691,6 +2681,14 @@ private fun AllTasksScreen(
     viewModel: RoutineViewModel,
     onOpenTask: () -> Unit
 ) {
+    var selectedCategory by remember { mutableStateOf("All") }
+    val categories = remember(tasks) {
+        listOf("All") + tasks.map { it.category }.distinct().filter { it.isNotBlank() }
+    }
+    val filteredTasks = remember(tasks, selectedCategory) {
+        if (selectedCategory == "All") tasks else tasks.filter { it.category == selectedCategory }
+    }
+
     AdaptiveLazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
@@ -2705,7 +2703,7 @@ private fun AllTasksScreen(
                 Column {
                     Text("All tasks", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                     Text(
-                        "${tasks.count { !it.completed }} open · ${tasks.count { it.completed }} complete",
+                        "${filteredTasks.count { !it.completed }} open · ${filteredTasks.count { it.completed }} complete",
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -2714,21 +2712,61 @@ private fun AllTasksScreen(
                 }
             }
         }
-        if (tasks.isEmpty()) {
+
+        if (categories.size > 1) {
+            item {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    categories.forEach { cat ->
+                        FilterChip(
+                            selected = selectedCategory == cat,
+                            onClick = { selectedCategory = cat },
+                            label = { Text(cat) },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        )
+                    }
+                }
+            }
+        }
+
+        if (filteredTasks.isEmpty()) {
             item {
                 GlassSurface(
                     modifier = Modifier.fillMaxWidth(),
                     cornerRadius = LiquidGlassTokens.cardRadius,
                     elevation = 0.dp
                 ) {
-                    Column(Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Your task list is clear", style = MaterialTheme.typography.titleMedium)
-                        Text("Add the next meaningful action when you are ready.")
+                    Column(
+                        modifier = Modifier.padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            Icons.Rounded.AutoAwesome,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(32.dp)
+                        )
+                        Text("Your task list is clear", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Text(
+                            "Add the next meaningful action when you are ready.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center
+                        )
                     }
                 }
             }
         } else {
-            items(tasks, key = { it.id }) { task ->
+            items(filteredTasks, key = { it.id }) { task ->
                 TaskCard(
                     task = task,
                     onComplete = { viewModel.setTaskCompleted(task.id, !task.completed) },
