@@ -94,6 +94,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -844,15 +845,16 @@ private fun WaterDropletBurst(
         }
 
         // Connect nearby liquid droplets with metaball bridges
-        for (i in 0 until computedSpheres.size) {
-            for (j in i + 1 until computedSpheres.size) {
-                val p1 = computedSpheres[i].first
-                val p2 = computedSpheres[j].first
-                val r1 = computedSpheres[i].second
-                val r2 = computedSpheres[j].second
+        for ((i, s1) in computedSpheres.withIndex()) {
+            for ((j, s2) in computedSpheres.withIndex()) {
+                if (j <= i) continue
+                val p1 = s1.first
+                val p2 = s2.first
+                val r1 = s1.second
+                val r2 = s2.second
                 val dist = (p1 - p2).getDistance()
                 if (dist > 0.1f && dist < (r1 + r2) * 2.8f) {
-                    val bridgeAlpha = (1f - dist / ((r1 + r2) * 2.8f)) * computedSpheres[i].third * 0.45f
+                    val bridgeAlpha = (1f - dist / ((r1 + r2) * 2.8f)) * s1.third * 0.45f
                     if (bridgeAlpha > 0f) {
                         drawLine(
                             color = primaryColor.copy(alpha = bridgeAlpha),
@@ -932,11 +934,29 @@ private fun DrawScope.drawGlassWaterSphere(
         style = Stroke(width = radius * 0.18f)
     )
 
+    // Caustic reflection curve (bottom right)
+    drawArc(
+        color = Color.White.copy(alpha = alpha * 0.45f),
+        startAngle = 10f,
+        sweepAngle = 70f,
+        useCenter = false,
+        topLeft = Offset(center.x - radius * 0.85f, center.y - radius * 0.85f),
+        size = Size(radius * 1.7f, radius * 1.7f),
+        style = Stroke(width = radius * 0.15f, cap = StrokeCap.Round)
+    )
+
     // Specular Highlight Spot
-    drawCircle(
+    drawOval(
         color = Color.White.copy(alpha = alpha * 0.95f),
-        radius = radius * 0.28f,
-        center = Offset(center.x - radius * 0.35f, center.y - radius * 0.38f)
+        topLeft = Offset(center.x - radius * 0.55f, center.y - radius * 0.65f),
+        size = Size(radius * 0.5f, radius * 0.25f)
+    )
+    
+    // Secondary Micro Highlight
+    drawCircle(
+        color = Color.White.copy(alpha = alpha * 0.8f),
+        radius = radius * 0.08f,
+        center = Offset(center.x - radius * 0.15f, center.y - radius * 0.70f)
     )
 }
 
@@ -967,6 +987,26 @@ private fun RoutineFlowDockClearPdf(
     var pressed by remember { mutableStateOf(false) }
     val slotPx = widthPx / labels.size
     val panelOffset = remember { androidx.compose.animation.core.Animatable(0f) }
+
+    // Tap-Beam State
+    var beamTrigger by remember { mutableIntStateOf(0) }
+    var beamOriginLeft by remember { mutableStateOf(true) }
+    var beamTargetIndex by remember { mutableIntStateOf(0) }
+    val beamProgress = remember { androidx.compose.animation.core.Animatable(0f) }
+
+    androidx.compose.runtime.LaunchedEffect(beamTrigger) {
+        if (beamTrigger > 0 && !reducedMotion) {
+            beamProgress.snapTo(0f)
+            beamProgress.animateTo(
+                1f,
+                animationSpec = androidx.compose.animation.core.tween(
+                    durationMillis = 350,
+                    easing = androidx.compose.animation.core.FastOutSlowInEasing
+                )
+            )
+            beamProgress.snapTo(0f)
+        }
+    }
 
     androidx.compose.runtime.LaunchedEffect(selectedTab) {
         if (!pressed) motion.sync(selectedTab)
@@ -1047,6 +1087,11 @@ private fun RoutineFlowDockClearPdf(
                         val finalTab = if (!moved) touchedTab else motion.release()
                         if (!moved) {
                             motion.select(finalTab)
+                            if (finalTab != selectedTab) {
+                                beamOriginLeft = finalTab <= labels.lastIndex / 2
+                                beamTargetIndex = finalTab
+                                beamTrigger++
+                            }
                         }
                         scope.launch {
                             panelOffset.animateTo(
@@ -1096,6 +1141,38 @@ private fun RoutineFlowDockClearPdf(
                         )
                 )
             }
+            
+            if (slotPx > 0f && beamProgress.value > 0f) {
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    val targetX = slotPx * (beamTargetIndex + 0.5f)
+                    val startX = if (beamOriginLeft) 0f else size.width
+                    
+                    val currentHeadX = androidx.compose.ui.util.lerp(startX, targetX, beamProgress.value)
+                    val tailLength = 140f
+                    val tailX = if (beamOriginLeft) currentHeadX - tailLength else currentHeadX + tailLength
+                    
+                    val colors = if (beamOriginLeft) {
+                        listOf(Color.Transparent, Color(0xFF38BDF8), Color.White)
+                    } else {
+                        listOf(Color.White, Color(0xFF38BDF8), Color.Transparent)
+                    }
+                    val startGradientX = if (beamOriginLeft) tailX else currentHeadX
+                    val endGradientX = if (beamOriginLeft) currentHeadX else tailX
+                    
+                    drawLine(
+                        brush = Brush.horizontalGradient(
+                            colors = colors,
+                            startX = startGradientX,
+                            endX = endGradientX
+                        ),
+                        start = Offset(tailX, size.height / 2f),
+                        end = Offset(currentHeadX, size.height / 2f),
+                        strokeWidth = 3.dp.toPx(),
+                        cap = StrokeCap.Round
+                    )
+                }
+            }
+            
             Row(Modifier.fillMaxSize()) {
                 labels.forEachIndexed { index, label ->
                     val highlighted = if (pressed) {
@@ -1373,24 +1450,37 @@ private fun DailyTreeCard(state: TodayUiState, tasks: List<TaskEntity>) {
 
                 Surface(
                     shape = RoundedCornerShape(16.dp),
-                    color = MaterialTheme.colorScheme.primaryContainer
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
+                        val infiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition()
+                        val floatOffset by infiniteTransition.animateFloat(
+                            initialValue = -2f,
+                            targetValue = 2f,
+                            animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                                animation = androidx.compose.animation.core.tween(1500, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+                                repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
+                            ),
+                            label = "water_drop_float"
+                        )
                         Icon(
                             Icons.Rounded.WaterDrop,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(16.dp)
+                            modifier = Modifier
+                                .size(16.dp)
+                                .offset(y = floatOffset.dp)
                         )
                         Text(
                             text = "$waterDrops Drops",
                             style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                            fontWeight = FontWeight.ExtraBold,
+                            color = MaterialTheme.colorScheme.primary
                         )
                     }
                 }
@@ -2862,6 +2952,46 @@ private fun PlannerScreen(tasks: List<TaskEntity>) {
                     PlannerBlockCard(block.start, block.end, block.task.title, block.task.category)
                 }
             }
+        } else if (plannerTasks.isEmpty()) {
+            item {
+                GlassSurface(
+                    modifier = Modifier.fillMaxWidth(),
+                    cornerRadius = LiquidGlassTokens.cardRadius,
+                    elevation = 0.dp
+                ) {
+                    Column(
+                        modifier = Modifier.padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        val infiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition()
+                        val floatOffset by infiniteTransition.animateFloat(
+                            initialValue = -4f,
+                            targetValue = 4f,
+                            animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                                animation = androidx.compose.animation.core.tween(1200, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+                                repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
+                            ),
+                            label = "empty_planner_icon_float"
+                        )
+                        Icon(
+                            Icons.Rounded.Checklist,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier
+                                .size(32.dp)
+                                .offset(y = floatOffset.dp)
+                        )
+                        Text("No pending tasks", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Text(
+                            "Add tasks to generate a timeline.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+            }
         }
     }
 }
@@ -3462,7 +3592,8 @@ private fun SettingsScreen(
                                 checked = darkMode,
                                 onCheckedChange = { onThemeToggle() }
                             )
-                        }
+                        },
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent)
                     )
                 }
             }
@@ -3471,8 +3602,8 @@ private fun SettingsScreen(
             GlassSurface(
                 modifier = Modifier.fillMaxWidth(),
                 cornerRadius = 22.dp,
-                highlighted = false,
-                elevation = 2.dp
+                highlighted = true,
+                elevation = 8.dp
             ) {
                 Column {
                     ListItem(
@@ -3484,7 +3615,8 @@ private fun SettingsScreen(
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.primary
                             )
-                        }
+                        },
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent)
                     )
                     ListItem(
                         headlineContent = { Text("Sacred Tree Garden") },
@@ -3495,7 +3627,8 @@ private fun SettingsScreen(
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.secondary
                             )
-                        }
+                        },
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent)
                     )
                 }
             }
@@ -3525,7 +3658,8 @@ private fun SettingsScreen(
                                 checked = appLockEnabled,
                                 onCheckedChange = onAppLockChange
                             )
-                        }
+                        },
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent)
                     )
                 }
             }
@@ -3560,7 +3694,8 @@ private fun SettingsScreen(
                             checked = reducedMotion,
                             onCheckedChange = onReducedMotionChange
                         )
-                    }
+                    },
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent)
                 )
             }
         }

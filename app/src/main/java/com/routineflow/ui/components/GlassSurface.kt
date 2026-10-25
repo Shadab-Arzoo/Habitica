@@ -37,9 +37,9 @@ fun GlassSurface(
     val glassFill = if (highlighted) {
         Brush.verticalGradient(
             colors = listOf(
-                Color.White.copy(alpha = if (renderMode == GlassRenderMode.Full) 0.22f else 0.14f),
-                tint.copy(alpha = (tint.alpha * 0.82f).coerceIn(0.22f, 0.78f)),
-                tint.copy(alpha = (tint.alpha * 0.68f).coerceIn(0.18f, 0.64f))
+                Color.White.copy(alpha = if (renderMode == GlassRenderMode.Full) 0.35f else 0.20f),
+                tint.copy(alpha = (tint.alpha * 0.90f).coerceIn(0.22f, 0.88f)),
+                tint.copy(alpha = (tint.alpha * 0.70f).coerceIn(0.18f, 0.74f))
             )
         )
     } else {
@@ -49,9 +49,9 @@ fun GlassSurface(
     // Specular border gradient for glossy light reflection along the edges
     val glassBorder = Brush.linearGradient(
         colors = listOf(
-            Color.White.copy(alpha = if (renderMode == GlassRenderMode.Full) 0.62f else 0.36f),
-            onSurfaceColor.copy(alpha = 0.10f),
-            primaryColor.copy(alpha = 0.24f)
+            Color.White.copy(alpha = if (renderMode == GlassRenderMode.Full) 0.75f else 0.40f),
+            onSurfaceColor.copy(alpha = 0.15f),
+            primaryColor.copy(alpha = 0.35f)
         )
     )
 
