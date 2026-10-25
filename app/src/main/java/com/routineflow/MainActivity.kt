@@ -1156,6 +1156,22 @@ private fun RoutineFlowDockClearPdf(
                     val startX = if (beamOriginLeft) 0f else size.width
                     val midY = size.height / 2f
 
+                    // 0. Background Radial Glass Wash
+                    val washX = androidx.compose.ui.util.lerp(startX, targetX, progress)
+                    drawCircle(
+                        brush = Brush.radialGradient(
+                            colors = listOf(
+                                Color(0xFF38BDF8).copy(alpha = 0.28f * globalAlpha),
+                                Color(0xFF818CF8).copy(alpha = 0.12f * globalAlpha),
+                                Color.Transparent
+                            ),
+                            center = Offset(washX, midY),
+                            radius = 65.dp.toPx()
+                        ),
+                        radius = 65.dp.toPx(),
+                        center = Offset(washX, midY)
+                    )
+
                     // Multi-Stream Energy Trails (Top, Center, Bottom)
                     val streams = listOf(
                         Triple(-10.dp.toPx(), 0.90f, Color(0xFF38BDF8)), // Top Sky Cyan Stream
@@ -1165,6 +1181,8 @@ private fun RoutineFlowDockClearPdf(
 
                     streams.forEach { (yOffset, speedMult, accentColor) ->
                         val effectiveProgress = (progress * speedMult).coerceIn(0f, 1f)
+                        // Arching parabola trajectory: arc rises in the middle of the flight
+                        val arcHeight = kotlin.math.sin(effectiveProgress * Math.PI).toFloat() * 14.dp.toPx()
                         val currentHeadX = androidx.compose.ui.util.lerp(startX, targetX, effectiveProgress)
                         val tailLength = 220f
                         val tailX = if (beamOriginLeft) currentHeadX - tailLength else currentHeadX + tailLength
@@ -1176,33 +1194,33 @@ private fun RoutineFlowDockClearPdf(
                         }
                         val startGradientX = if (beamOriginLeft) tailX else currentHeadX
                         val endGradientX = if (beamOriginLeft) currentHeadX else tailX
-                        val streamY = midY + yOffset
+                        val streamY = midY + yOffset - arcHeight
 
                         // 1. Moving Light Orb Ambient Aura
                         drawCircle(
                             brush = Brush.radialGradient(
                                 colors = listOf(
-                                    accentColor.copy(alpha = 0.45f * globalAlpha),
-                                    accentColor.copy(alpha = 0.15f * globalAlpha),
+                                    accentColor.copy(alpha = 0.50f * globalAlpha),
+                                    accentColor.copy(alpha = 0.18f * globalAlpha),
                                     Color.Transparent
                                 ),
                                 center = Offset(currentHeadX, streamY),
-                                radius = 28.dp.toPx()
+                                radius = 32.dp.toPx()
                             ),
-                            radius = 28.dp.toPx(),
+                            radius = 32.dp.toPx(),
                             center = Offset(currentHeadX, streamY)
                         )
 
                         // 2. Wide Outer Gradient Glow Line
                         drawLine(
                             brush = Brush.horizontalGradient(
-                                colors = listOf(Color.Transparent, accentColor.copy(alpha = 0.50f * globalAlpha), Color.White.copy(alpha = 0.70f * globalAlpha)),
+                                colors = listOf(Color.Transparent, accentColor.copy(alpha = 0.55f * globalAlpha), Color.White.copy(alpha = 0.75f * globalAlpha)),
                                 startX = startGradientX,
                                 endX = endGradientX
                             ),
                             start = Offset(tailX, streamY),
                             end = Offset(currentHeadX, streamY),
-                            strokeWidth = 16.dp.toPx(),
+                            strokeWidth = 18.dp.toPx(),
                             cap = StrokeCap.Round
                         )
 
@@ -1215,36 +1233,61 @@ private fun RoutineFlowDockClearPdf(
                             ),
                             start = Offset(tailX, streamY),
                             end = Offset(currentHeadX, streamY),
-                            strokeWidth = 3.5.dp.toPx(),
+                            strokeWidth = 3.8.dp.toPx(),
                             cap = StrokeCap.Round
                         )
+
+                        // 4. Trailing Liquid Water Droplets
+                        for (d in 1..3) {
+                            val dropDist = d * 38f
+                            val dropX = if (beamOriginLeft) currentHeadX - dropDist else currentHeadX + dropDist
+                            val dropY = streamY + kotlin.math.sin(effectiveProgress * 12.0 + d).toFloat() * 5f
+                            drawCircle(
+                                color = Color.White.copy(alpha = 0.85f * globalAlpha * (1f - d * 0.25f)),
+                                radius = (3.5f - d * 0.8f).dp.toPx().coerceAtLeast(1f),
+                                center = Offset(dropX, dropY)
+                            )
+                        }
                     }
 
-                    // Target Impact Energy Ring & Sparkle Burst
-                    if (progress > 0.55f) {
-                        val burstProgress = ((progress - 0.55f) / 0.45f).coerceIn(0f, 1f)
+                    // Target Impact Energy Ring & 6-Point Water Splash Burst
+                    if (progress > 0.50f) {
+                        val burstProgress = ((progress - 0.50f) / 0.50f).coerceIn(0f, 1f)
                         val burstAlpha = (1f - burstProgress) * globalAlpha
-                        val burstRadius = (12.dp.toPx() + 28.dp.toPx() * burstProgress)
+                        val burstRadius = (12.dp.toPx() + 32.dp.toPx() * burstProgress)
 
                         // Outer Glowing Burst Ring
                         drawCircle(
                             brush = Brush.radialGradient(
                                 colors = listOf(
-                                    Color(0xFF38BDF8).copy(alpha = burstAlpha * 0.7f),
-                                    Color(0xFF818CF8).copy(alpha = burstAlpha * 0.3f),
+                                    Color(0xFF38BDF8).copy(alpha = burstAlpha * 0.75f),
+                                    Color(0xFF818CF8).copy(alpha = burstAlpha * 0.35f),
                                     Color.Transparent
                                 ),
                                 center = Offset(targetX, midY),
-                                radius = burstRadius * 1.6f
+                                radius = burstRadius * 1.8f
                             ),
-                            radius = burstRadius * 1.6f,
+                            radius = burstRadius * 1.8f,
                             center = Offset(targetX, midY)
                         )
+
+                        // 6 Radial Splash Particles
+                        for (s in 0 until 6) {
+                            val splashAngle = s * (Math.PI / 3.0) + progress * 2.5
+                            val splashDist = burstRadius * 1.1f
+                            val sx = targetX + kotlin.math.cos(splashAngle).toFloat() * splashDist
+                            val sy = midY + kotlin.math.sin(splashAngle).toFloat() * splashDist
+                            drawCircle(
+                                color = Color(0xFF38BDF8).copy(alpha = burstAlpha * 0.85f),
+                                radius = 2.8.dp.toPx() * (1f - burstProgress),
+                                center = Offset(sx, sy)
+                            )
+                        }
 
                         // Center Impact Glint
                         drawCircle(
                             color = Color.White.copy(alpha = burstAlpha * 0.95f),
-                            radius = 7.dp.toPx() * (1f - burstProgress),
+                            radius = 8.dp.toPx() * (1f - burstProgress),
                             center = Offset(targetX, midY)
                         )
                     }
