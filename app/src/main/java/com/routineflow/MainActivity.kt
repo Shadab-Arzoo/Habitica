@@ -1000,8 +1000,8 @@ private fun RoutineFlowDockClearPdf(
             beamProgress.animateTo(
                 1f,
                 animationSpec = androidx.compose.animation.core.tween(
-                    durationMillis = 420,
-                    easing = androidx.compose.animation.core.FastOutSlowInEasing
+                    durationMillis = 680,
+                    easing = androidx.compose.animation.core.CubicBezierEasing(0.16f, 1f, 0.3f, 1f)
                 )
             )
             beamProgress.snapTo(0f)
@@ -1019,41 +1019,46 @@ private fun RoutineFlowDockClearPdf(
             .height(92.dp),
         contentAlignment = Alignment.BottomCenter
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp)
-                .height(72.dp)
-                .graphicsLayer {
-                    scaleX = 1f + motion.pressed * 0.025f
-                    scaleY = 1f + motion.pressed * 0.015f
-                    translationX = panelOffset.value
-                }
-                .shadow(
-                    elevation = 10.dp,
-                    shape = CircleShape,
-                    ambientColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
-                    spotColor = Color.Black.copy(alpha = 0.12f)
-                )
-                .clip(CircleShape)
-                .background(
-                    Brush.verticalGradient(
-                        listOf(
-                            MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
-                            MaterialTheme.colorScheme.surface.copy(alpha = 0.80f),
-                            MaterialTheme.colorScheme.surface.copy(alpha = 0.92f)
+            val dockGlowAlpha = if (beamProgress.value > 0f) {
+                val p = beamProgress.value
+                (if (p < 0.5f) p * 2f else (1f - p) * 2f).coerceIn(0f, 1f) * 0.5f
+            } else 0f
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .height(72.dp)
+                    .graphicsLayer {
+                        scaleX = 1f + motion.pressed * 0.025f
+                        scaleY = 1f + motion.pressed * 0.015f
+                        translationX = panelOffset.value
+                    }
+                    .shadow(
+                        elevation = (10 + dockGlowAlpha * 12).dp,
+                        shape = CircleShape,
+                        ambientColor = Color(0xFF38BDF8).copy(alpha = 0.2f + dockGlowAlpha * 0.5f),
+                        spotColor = Color(0xFF818CF8).copy(alpha = 0.2f + dockGlowAlpha * 0.5f)
+                    )
+                    .clip(CircleShape)
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(
+                                MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
+                                MaterialTheme.colorScheme.surface.copy(alpha = 0.80f),
+                                MaterialTheme.colorScheme.surface.copy(alpha = 0.92f)
+                            )
                         )
                     )
-                )
-                .border(
-                    width = 1.dp,
-                    brush = Brush.verticalGradient(
-                        0f to Color.White.copy(alpha = 0.65f),
-                        0.25f to Color.White.copy(alpha = 0.15f),
-                        1f to Color.White.copy(alpha = 0.05f)
-                    ),
-                    shape = CircleShape
-                )
+                    .border(
+                        width = (1f + dockGlowAlpha * 2.5f).dp,
+                        brush = Brush.verticalGradient(
+                            0f to Color.White.copy(alpha = 0.65f + dockGlowAlpha * 0.35f),
+                            0.3f to Color(0xFF38BDF8).copy(alpha = 0.15f + dockGlowAlpha * 0.7f),
+                            1f to Color(0xFF818CF8).copy(alpha = 0.05f + dockGlowAlpha * 0.5f)
+                        ),
+                        shape = CircleShape
+                    )
                 .onSizeChanged { widthPx = it.width.toFloat() }
                 .pointerInput(slotPx, reducedMotion) {
                     awaitEachGesture {
@@ -1145,46 +1150,63 @@ private fun RoutineFlowDockClearPdf(
             if (slotPx > 0f && beamProgress.value > 0f) {
                 Canvas(modifier = Modifier.fillMaxSize()) {
                     val progress = beamProgress.value
+                    // Graceful fade out decay curve as progress nears 1.0
+                    val globalAlpha = if (progress < 0.65f) 1f else ((1f - progress) / 0.35f).coerceIn(0f, 1f)
                     val targetX = slotPx * (beamTargetIndex + 0.5f)
                     val startX = if (beamOriginLeft) 0f else size.width
                     val midY = size.height / 2f
 
                     // Multi-Stream Energy Trails (Top, Center, Bottom)
                     val streams = listOf(
-                        Triple(-8.dp.toPx(), 0.92f, Color(0xFF38BDF8)),  // Top Sky Cyan Stream
+                        Triple(-10.dp.toPx(), 0.90f, Color(0xFF38BDF8)), // Top Sky Cyan Stream
                         Triple(0.dp.toPx(), 1.00f, Color(0xFF818CF8)),   // Center Indigo Stream
-                        Triple(8.dp.toPx(), 1.08f, Color(0xFFF472B6))    // Bottom Neon Pink Stream
+                        Triple(10.dp.toPx(), 1.10f, Color(0xFFF472B6))   // Bottom Neon Pink Stream
                     )
 
                     streams.forEach { (yOffset, speedMult, accentColor) ->
                         val effectiveProgress = (progress * speedMult).coerceIn(0f, 1f)
                         val currentHeadX = androidx.compose.ui.util.lerp(startX, targetX, effectiveProgress)
-                        val tailLength = 160f
+                        val tailLength = 220f
                         val tailX = if (beamOriginLeft) currentHeadX - tailLength else currentHeadX + tailLength
 
                         val colors = if (beamOriginLeft) {
-                            listOf(Color.Transparent, accentColor.copy(alpha = 0.8f), Color.White)
+                            listOf(Color.Transparent, accentColor.copy(alpha = 0.85f * globalAlpha), Color.White.copy(alpha = globalAlpha))
                         } else {
-                            listOf(Color.White, accentColor.copy(alpha = 0.8f), Color.Transparent)
+                            listOf(Color.White.copy(alpha = globalAlpha), accentColor.copy(alpha = 0.85f * globalAlpha), Color.Transparent)
                         }
                         val startGradientX = if (beamOriginLeft) tailX else currentHeadX
                         val endGradientX = if (beamOriginLeft) currentHeadX else tailX
                         val streamY = midY + yOffset
 
-                        // 1. Ambient Outer Glow Line
+                        // 1. Moving Light Orb Ambient Aura
+                        drawCircle(
+                            brush = Brush.radialGradient(
+                                colors = listOf(
+                                    accentColor.copy(alpha = 0.45f * globalAlpha),
+                                    accentColor.copy(alpha = 0.15f * globalAlpha),
+                                    Color.Transparent
+                                ),
+                                center = Offset(currentHeadX, streamY),
+                                radius = 28.dp.toPx()
+                            ),
+                            radius = 28.dp.toPx(),
+                            center = Offset(currentHeadX, streamY)
+                        )
+
+                        // 2. Wide Outer Gradient Glow Line
                         drawLine(
                             brush = Brush.horizontalGradient(
-                                colors = listOf(Color.Transparent, accentColor.copy(alpha = 0.35f), Color.White.copy(alpha = 0.5f)),
+                                colors = listOf(Color.Transparent, accentColor.copy(alpha = 0.50f * globalAlpha), Color.White.copy(alpha = 0.70f * globalAlpha)),
                                 startX = startGradientX,
                                 endX = endGradientX
                             ),
                             start = Offset(tailX, streamY),
                             end = Offset(currentHeadX, streamY),
-                            strokeWidth = 9.dp.toPx(),
+                            strokeWidth = 16.dp.toPx(),
                             cap = StrokeCap.Round
                         )
 
-                        // 2. Core Intense Energy Beam
+                        // 3. Core Intense Energy Beam
                         drawLine(
                             brush = Brush.horizontalGradient(
                                 colors = colors,
@@ -1193,35 +1215,36 @@ private fun RoutineFlowDockClearPdf(
                             ),
                             start = Offset(tailX, streamY),
                             end = Offset(currentHeadX, streamY),
-                            strokeWidth = 3.dp.toPx(),
+                            strokeWidth = 3.5.dp.toPx(),
                             cap = StrokeCap.Round
                         )
                     }
 
                     // Target Impact Energy Ring & Sparkle Burst
-                    if (progress > 0.65f) {
-                        val burstAlpha = ((progress - 0.65f) / 0.35f).coerceIn(0f, 1f)
-                        val burstRadius = (12.dp.toPx() + 18.dp.toPx() * burstAlpha)
+                    if (progress > 0.55f) {
+                        val burstProgress = ((progress - 0.55f) / 0.45f).coerceIn(0f, 1f)
+                        val burstAlpha = (1f - burstProgress) * globalAlpha
+                        val burstRadius = (12.dp.toPx() + 28.dp.toPx() * burstProgress)
 
                         // Outer Glowing Burst Ring
                         drawCircle(
                             brush = Brush.radialGradient(
                                 colors = listOf(
-                                    Color(0xFF38BDF8).copy(alpha = (1f - burstAlpha) * 0.6f),
-                                    Color(0xFF818CF8).copy(alpha = (1f - burstAlpha) * 0.2f),
+                                    Color(0xFF38BDF8).copy(alpha = burstAlpha * 0.7f),
+                                    Color(0xFF818CF8).copy(alpha = burstAlpha * 0.3f),
                                     Color.Transparent
                                 ),
                                 center = Offset(targetX, midY),
-                                radius = burstRadius * 1.5f
+                                radius = burstRadius * 1.6f
                             ),
-                            radius = burstRadius * 1.5f,
+                            radius = burstRadius * 1.6f,
                             center = Offset(targetX, midY)
                         )
 
                         // Center Impact Glint
                         drawCircle(
-                            color = Color.White.copy(alpha = (1f - burstAlpha) * 0.9f),
-                            radius = 6.dp.toPx() * (1f - burstAlpha),
+                            color = Color.White.copy(alpha = burstAlpha * 0.95f),
+                            radius = 7.dp.toPx() * (1f - burstProgress),
                             center = Offset(targetX, midY)
                         )
                     }
