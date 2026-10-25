@@ -1352,12 +1352,12 @@ private fun DailyTreeCard(state: TodayUiState, tasks: List<TaskEntity>) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column {
-                    Text(
-                        text = "Today's Sacred Tree 🌱",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
+                            Text(
+                                text = "Today's Sacred Tree",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
                     Text(
                         text = when {
                             growthRatio >= 1.0f -> "100% All tasks done - Blooming!"
@@ -1387,7 +1387,7 @@ private fun DailyTreeCard(state: TodayUiState, tasks: List<TaskEntity>) {
                             modifier = Modifier.size(16.dp)
                         )
                         Text(
-                            text = "💧 $waterDrops Drops",
+                            text = "$waterDrops Drops",
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onPrimaryContainer
@@ -1606,7 +1606,18 @@ private fun GardenScreen(state: TodayUiState, tasks: List<TaskEntity>) {
                             .clip(RoundedCornerShape(18.dp))
                             .background(MaterialTheme.colorScheme.surfaceContainerHighest)
                     ) {
-                        Canvas(
+                        val infiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition()
+                    val timeFloat by infiniteTransition.animateFloat(
+                        initialValue = 0f,
+                        targetValue = (2 * Math.PI).toFloat(),
+                        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                            animation = androidx.compose.animation.core.tween(4000, easing = androidx.compose.animation.core.LinearEasing),
+                            repeatMode = androidx.compose.animation.core.RepeatMode.Restart
+                        ),
+                        label = "forest_magic_particles"
+                    )
+
+                    Canvas(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .graphicsLayer {
@@ -1625,23 +1636,23 @@ private fun GardenScreen(state: TodayUiState, tasks: List<TaskEntity>) {
                                     }
                                 }
                         ) {
-                            val tileWidth = size.width / 5.2f
+                            val tileWidth = size.width / 8f
                             val tileHeight = tileWidth * 0.52f
                             val startX = size.width / 2f
-                            val startY = if (is3DMode) size.height * (1f - tiltAngle) else 80.dp.toPx()
+                            val startY = if (is3DMode) size.height * (1f - tiltAngle) else 60.dp.toPx()
 
-                            listOf(selectedDayIndex to (pastDays.getOrNull(selectedDayIndex) ?: today)).forEach { (index, dayDate) ->
-                                val row = 0
-                                val col = 0
+                            pastDays.forEachIndexed { index, dayDate ->
+                                val row = index / 7
+                                val col = index % 7
                                 val completedTasks = state.taskActivity[dayDate] ?: 0
-                                val dayRatio = treeRatio(completedTasks, tasks.size)
+                                val dayRatio = treeRatio(completedTasks, tasks.size.coerceAtLeast(1))
 
                                 val isoX = if (!is3DMode) {
                                     startX + (col - row) * (tileWidth * 0.48f)
                                 } else {
                                     val depth = 1.0f + row * 0.35f
                                     val scale = 1.0f / depth
-                                    startX + (col - 0.5f) * (tileWidth * scale * 0.9f)
+                                    startX + (col - 3f) * (tileWidth * scale * 0.9f)
                                 }
 
                                 val isoY = if (!is3DMode) {
@@ -1654,16 +1665,20 @@ private fun GardenScreen(state: TodayUiState, tasks: List<TaskEntity>) {
                                 val tileColor = when {
                                     isSelected -> primaryColor
                                     completedTasks > 0 -> Color(0xFF4ADE80) // Lush green grass
-                                    else -> Color(0xFFE5E7EB) // Dry earth skipped tile
+                                    else -> Color(0xFF1E293B) // Obsidian/slate dry earth tile
                                 }
 
                                 // 1. Draw 3D Isometric Land Tile
                                 drawIsoTile(isoX, isoY, tileWidth, tileHeight, tileColor, isSelected)
 
-                                // 2. Draw Low-Poly Voxel 3D Tree according to exact phase or Stone for 0%
+                                // 2. Draw Low-Poly Voxel 3D Tree or Stone for 0%
+                                val scale = if (is3DMode) 1.0f / (1.0f + row * 0.25f) else 1.0f
                                 if (dayRatio > 0f) {
-                                    val scale = if (is3DMode) 1.0f / (1.0f + row * 0.25f) else 1.0f
-                                    drawLowPoly3DTree(isoX, isoY, scale, dayRatio)
+                                    // Use smaller scale for forest view so they don't overlap too much
+                                    drawLowPoly3DTree(isoX, isoY, scale * 0.7f, dayRatio, timeFloat)
+                                } else {
+                                    // Make stones slightly smaller
+                                    drawLowPolyRock(isoX, isoY - 2f * scale, scale * 0.7f)
                                 }
                             }
                         }
@@ -1958,9 +1973,9 @@ private fun DrawScope.drawLowPoly3DTree(
 /**
  * Draws a Low-Poly Stone / Dry Rock on Canvas for skipped days.
  */
-private fun DrawScope.drawLowPolyRock(isoX: Float, isoY: Float) {
-    val rockW = 10f
-    val rockH = 8f
+private fun DrawScope.drawLowPolyRock(isoX: Float, isoY: Float, scale: Float = 1.0f) {
+    val rockW = 10f * scale
+    val rockH = 8f * scale
     val rockTop = Path().apply {
         moveTo(isoX, isoY - rockH)
         lineTo(isoX + rockW / 2, isoY - rockH / 2)
@@ -1973,8 +1988,8 @@ private fun DrawScope.drawLowPolyRock(isoX: Float, isoY: Float) {
     val rockLeft = Path().apply {
         moveTo(isoX - rockW / 2, isoY - rockH / 2)
         lineTo(isoX, isoY)
-        lineTo(isoX, isoY + 3f)
-        lineTo(isoX - rockW / 2, isoY - rockH / 2 + 3f)
+        lineTo(isoX, isoY + 3f * scale)
+        lineTo(isoX - rockW / 2, isoY - rockH / 2 + 3f * scale)
         close()
     }
     drawPath(rockLeft, Color(0xFF9CA3AF))
@@ -1982,8 +1997,8 @@ private fun DrawScope.drawLowPolyRock(isoX: Float, isoY: Float) {
     val rockRight = Path().apply {
         moveTo(isoX, isoY)
         lineTo(isoX + rockW / 2, isoY - rockH / 2)
-        lineTo(isoX + rockW / 2, isoY - rockH / 2 + 3f)
-        lineTo(isoX, isoY + 3f)
+        lineTo(isoX + rockW / 2, isoY - rockH / 2 + 3f * scale)
+        lineTo(isoX, isoY + 3f * scale)
         close()
     }
     drawPath(rockRight, Color(0xFF6B7280))
@@ -2116,7 +2131,7 @@ private fun RecoveryCard() {
             modifier = Modifier.padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("🌱", style = MaterialTheme.typography.headlineMedium)
+            Icon(Icons.Rounded.AutoAwesome, contentDescription = null, tint = MaterialTheme.colorScheme.onSecondaryContainer, modifier = Modifier.size(32.dp))
             Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
@@ -2394,10 +2409,10 @@ private fun HabitCard(
 ) {
     val haptics = LocalHapticFeedback.current
     val checkScale by animateFloatAsState(
-        targetValue = if (completed) 1.12f else 1.0f,
+        targetValue = if (completed) 1.25f else 1.0f,
         animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessMediumLow
+            dampingRatio = 0.5f,
+            stiffness = 200f
         ),
         label = "check_scale"
     )
@@ -2434,7 +2449,12 @@ private fun HabitCard(
                 },
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(habit.emoji, style = MaterialTheme.typography.headlineMedium)
+            Box(modifier = Modifier.graphicsLayer {
+                scaleX = checkScale
+                scaleY = checkScale
+            }) {
+                Text(habit.emoji, style = MaterialTheme.typography.headlineMedium)
+            }
             Column(
                 modifier = Modifier
                     .padding(horizontal = 14.dp)
@@ -2610,10 +2630,19 @@ private fun TaskCard(
             modifier = Modifier.padding(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            val checkScale by animateFloatAsState(
+                targetValue = if (task.completed) 1.25f else 1f,
+                animationSpec = spring(dampingRatio = 0.5f, stiffness = 200f),
+                label = "task_check_scale"
+            )
             IconButton(
                 onClick = {
                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                     onComplete()
+                },
+                modifier = Modifier.graphicsLayer {
+                    scaleX = checkScale
+                    scaleY = checkScale
                 }
             ) {
                 Icon(

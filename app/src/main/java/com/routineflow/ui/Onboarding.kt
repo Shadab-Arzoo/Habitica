@@ -87,7 +87,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 data class OnboardingCategory(
     val id: String,
     val label: String,
-    val emoji: String
+    val icon: androidx.compose.ui.graphics.vector.ImageVector
 )
 
 data class TaskTemplate(
@@ -96,14 +96,14 @@ data class TaskTemplate(
 )
 
 val onboardingCategories = listOf(
-    OnboardingCategory("study", "College & studying", "📚"),
-    OnboardingCategory("productivity", "Personal productivity", "✨"),
-    OnboardingCategory("health", "Health & fitness", "🌿"),
-    OnboardingCategory("habits", "Habits & routines", "🔁"),
-    OnboardingCategory("coding", "Projects & coding", "💻"),
-    OnboardingCategory("learning", "Reading & learning", "🧠"),
-    OnboardingCategory("career", "Work & career", "🚀"),
-    OnboardingCategory("life", "Personal life & errands", "🏡")
+    OnboardingCategory("study", "College & studying", androidx.compose.material.icons.Icons.Rounded.AutoAwesome),
+    OnboardingCategory("productivity", "Personal productivity", androidx.compose.material.icons.Icons.Rounded.Check),
+    OnboardingCategory("health", "Health & fitness", androidx.compose.material.icons.Icons.Rounded.PlayArrow),
+    OnboardingCategory("habits", "Habits & routines", androidx.compose.material.icons.Icons.Rounded.PlayArrow),
+    OnboardingCategory("coding", "Projects & coding", androidx.compose.material.icons.Icons.Rounded.Edit),
+    OnboardingCategory("learning", "Reading & learning", androidx.compose.material.icons.Icons.Rounded.PlayArrow),
+    OnboardingCategory("career", "Work & career", androidx.compose.material.icons.Icons.Rounded.AutoAwesome),
+    OnboardingCategory("life", "Personal life & errands", androidx.compose.material.icons.Icons.Rounded.Check)
 )
 
 private val templates = mapOf(
@@ -436,7 +436,7 @@ private fun CategoryPage(
                     tint = if (checked) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.8f) else MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)
                 ) {
                     Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text(category.emoji, style = MaterialTheme.typography.headlineSmall)
+                        Icon(category.icon, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
                         Text(
                             category.label, 
                             Modifier.weight(1f).padding(horizontal = 16.dp),
