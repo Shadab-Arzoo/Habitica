@@ -2569,6 +2569,63 @@ private fun FocusScreen(tasks: List<TaskEntity>) {
 }
 
 @Composable
+private fun CompletionSparkle(
+    active: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val sparkProgress = remember { androidx.compose.animation.core.Animatable(0f) }
+
+    androidx.compose.runtime.LaunchedEffect(active) {
+        if (active) {
+            sparkProgress.snapTo(0f)
+            sparkProgress.animateTo(
+                1f,
+                animationSpec = androidx.compose.animation.core.tween(
+                    durationMillis = 500,
+                    easing = androidx.compose.animation.core.FastOutSlowInEasing
+                )
+            )
+            sparkProgress.snapTo(0f)
+        }
+    }
+
+    if (sparkProgress.value > 0f) {
+        val primaryColor = MaterialTheme.colorScheme.primary
+        val secondaryColor = MaterialTheme.colorScheme.secondary
+        Canvas(modifier = modifier) {
+            val progress = sparkProgress.value
+            val alpha = (1f - progress)
+            val center = Offset(size.width / 2f, size.height / 2f)
+            val radius = size.minDimension / 2f * (0.8f + progress * 1.4f)
+
+            // Ring shockwave
+            drawCircle(
+                color = primaryColor.copy(alpha = alpha * 0.5f),
+                radius = radius,
+                center = center,
+                style = Stroke(width = 2.dp.toPx() * alpha)
+            )
+
+            // 8 Radial Sparkles
+            val count = 8
+            for (i in 0 until count) {
+                val angle = i * (Math.PI * 2 / count)
+                val dist = radius * 1.1f
+                val px = center.x + kotlin.math.cos(angle).toFloat() * dist
+                val py = center.y + kotlin.math.sin(angle).toFloat() * dist
+                val sparkColor = if (i % 2 == 0) primaryColor else secondaryColor
+
+                drawCircle(
+                    color = sparkColor.copy(alpha = alpha),
+                    radius = (3.dp.toPx() * alpha).coerceAtLeast(1f),
+                    center = Offset(px, py)
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun HabitCard(
     habit: HabitEntity,
     completed: Boolean,
@@ -2617,11 +2674,27 @@ private fun HabitCard(
                 },
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(modifier = Modifier.graphicsLayer {
-                scaleX = checkScale
-                scaleY = checkScale
-            }) {
-                Text(habit.emoji, style = MaterialTheme.typography.headlineMedium)
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.clickable(
+                    interactionSource = null,
+                    indication = null,
+                    onClick = {
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onComplete()
+                    }
+                )
+            ) {
+                CompletionSparkle(
+                    active = completed,
+                    modifier = Modifier.size(56.dp)
+                )
+                Box(modifier = Modifier.graphicsLayer {
+                    scaleX = checkScale
+                    scaleY = checkScale
+                }) {
+                    Text(habit.emoji, style = MaterialTheme.typography.headlineMedium)
+                }
             }
             Column(
                 modifier = Modifier
@@ -2803,21 +2876,29 @@ private fun TaskCard(
                 animationSpec = spring(dampingRatio = 0.5f, stiffness = 200f),
                 label = "task_check_scale"
             )
-            IconButton(
-                onClick = {
-                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                    onComplete()
-                },
-                modifier = Modifier.graphicsLayer {
-                    scaleX = checkScale
-                    scaleY = checkScale
-                }
+            Box(
+                contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = Icons.Rounded.Check,
-                    contentDescription = null,
-                    tint = if (task.completed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                CompletionSparkle(
+                    active = task.completed,
+                    modifier = Modifier.size(48.dp)
                 )
+                IconButton(
+                    onClick = {
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onComplete()
+                    },
+                    modifier = Modifier.graphicsLayer {
+                        scaleX = checkScale
+                        scaleY = checkScale
+                    }
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Check,
+                        contentDescription = null,
+                        tint = if (task.completed) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
             Column(modifier = Modifier.weight(1f)) {
                 Text(
