@@ -146,6 +146,8 @@ class OnboardingViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
     val darkTheme: StateFlow<Boolean?> = preferences.darkTheme
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+    val appLockEnabled: StateFlow<Boolean> = preferences.appLockEnabled
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
     val state: StateFlow<OnboardingUiState> = kotlinx.coroutines.flow.combine(
         preferences.onboardingCompleted,
         routineRepository.habits(),
@@ -167,6 +169,10 @@ class OnboardingViewModel @Inject constructor(
 
     fun setDarkTheme(enabled: Boolean) {
         viewModelScope.launch { preferences.setDarkTheme(enabled) }
+    }
+
+    fun setAppLockEnabled(enabled: Boolean) {
+        viewModelScope.launch { preferences.setAppLockEnabled(enabled) }
     }
 
     fun finish(categories: Set<String>, selectedTasks: List<TaskTemplate>, onSaved: () -> Unit) {
@@ -203,7 +209,7 @@ fun OnboardingScreen(
     var editing by remember { mutableStateOf<TaskTemplate?>(null) }
     var editValue by remember { mutableStateOf("") }
     val onboardingState by viewModel.state.collectAsStateWithLifecycle()
-    val introPages = 5
+    val totalPages = 5
 
     Box(
         Modifier
@@ -230,15 +236,10 @@ fun OnboardingScreen(
                     fontWeight = FontWeight.ExtraBold,
                     color = MaterialTheme.colorScheme.onBackground
                 )
-                if (page < 5) {
-                    TextButton(onClick = { page = 5 }) { 
-                        Text("Skip Intro", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary) 
-                    }
-                }
             }
             
             LinearProgressIndicator(
-                progress = { (page + 1) / 9f },
+                progress = { (page + 1) / totalPages.toFloat() },
                 Modifier
                     .fillMaxWidth()
                     .height(6.dp)
@@ -256,17 +257,17 @@ fun OnboardingScreen(
                 },
                 label = "onboarding_page"
             ) { current ->
-                when {
-                    current < introPages -> IntroPage(current)
-                    current == 5 -> CategoryPage(
+                when (current) {
+                    0 -> IntroPage()
+                    1 -> CategoryPage(
                         selected = categories.keys,
                         onToggle = { key ->
                             if (categories[key] == true) categories.remove(key) else categories[key] = true
                         },
-                        onSkip = { page = 6 },
-                        onNext = { page = 6 }
+                        onSkip = { page = 2 },
+                        onNext = { page = 2 }
                     )
-                    current == 6 -> TaskSetupPage(
+                    2 -> TaskSetupPage(
                         categories = categories.keys,
                         selected = selected,
                         customTask = customTask,
@@ -285,13 +286,13 @@ fun OnboardingScreen(
                             editing = it
                             editValue = it.title
                         },
-                        onSkip = { selected = emptyList(); page = 8 },
-                        onNext = { page = 7 }
+                        onSkip = { selected = emptyList(); page = 4 },
+                        onNext = { page = 3 }
                     )
-                    current == 7 -> PlanPage(
+                    3 -> PlanPage(
                         selected = selected,
-                        onEdit = { page = 6 },
-                        onConfirm = { page = 8 },
+                        onEdit = { page = 2 },
+                        onConfirm = { page = 4 },
                         saving = false
                     )
                     else -> WelcomePage(
@@ -302,9 +303,9 @@ fun OnboardingScreen(
                     )
                 }
             }
-            if (page < 5) {
+            if (page == 0) {
                 Button(
-                    onClick = { page++ },
+                    onClick = { page = 1 },
                     Modifier.fillMaxWidth(),
                     contentPadding = PaddingValues(vertical = 18.dp),
                     shape = RoundedCornerShape(16.dp),
@@ -313,7 +314,7 @@ fun OnboardingScreen(
                         contentColor = MaterialTheme.colorScheme.onPrimary
                     )
                 ) {
-                    Text(if (page == 0) "Get started" else "Continue", fontWeight = FontWeight.Bold)
+                    Text("Get started", fontWeight = FontWeight.Bold)
                     Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = null)
                 }
             }
@@ -356,14 +357,7 @@ fun OnboardingScreen(
 }
 
 @Composable
-private fun IntroPage(page: Int) {
-    val content = listOf(
-        "Make space for what matters." to "Your tasks, routines, and goals — organized into a plan that works for your life.",
-        "Know what to do next." to "Organize your day, prioritize important tasks, and make progress one step at a time.",
-        "Small wins add up." to "Earn XP, unlock achievements, and celebrate progress at your own pace.",
-        "Fall behind? Start again." to "Recover with a realistic plan instead of an overwhelming backlog.",
-        "Make RoutineFlow yours." to "Choose what matters to you. We'll help you start with a plan that fits your life."
-    )[page]
+private fun IntroPage() {
     Column(
         Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.Center,
@@ -387,7 +381,7 @@ private fun IntroPage(page: Int) {
                     tint = MaterialTheme.colorScheme.primary
                 )
                 Text(
-                    when (page) { 0 -> "A calmer way to move forward"; 1 -> "Clarity for the next step"; 2 -> "Progress without pressure"; 3 -> "A fresh start is always possible"; else -> "Built around your life" },
+                    "Clarity for the next step",
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.ExtraBold,
                     textAlign = TextAlign.Center
@@ -406,14 +400,14 @@ private fun IntroPage(page: Int) {
             }
         }
         Text(
-            content.first, 
+            "Make space for what matters.", 
             style = MaterialTheme.typography.headlineLarge, 
             fontWeight = FontWeight.ExtraBold, 
             textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onBackground
         )
         Text(
-            content.second, 
+            "Your tasks, routines, and goals — organized into a plan that works for your life.", 
             Modifier.padding(top = 16.dp), 
             textAlign = TextAlign.Center, 
             color = MaterialTheme.colorScheme.onSurfaceVariant,

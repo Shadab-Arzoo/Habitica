@@ -1,7 +1,6 @@
 package com.routineflow
 
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.AnimatedContent
@@ -177,10 +176,14 @@ import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import androidx.biometric.BiometricManager
+import androidx.biometric.BiometricPrompt
+import androidx.core.content.ContextCompat
+import androidx.fragment.app.FragmentActivity
 import kotlinx.coroutines.delay
 
 @AndroidEntryPoint
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -196,17 +199,27 @@ private fun RoutineFlowRoot() {
     val onboardingViewModel: OnboardingViewModel = hiltViewModel()
     val onboarding by onboardingViewModel.state.collectAsStateWithLifecycle()
     val reducedMotion by onboardingViewModel.reducedMotion.collectAsStateWithLifecycle()
+    val appLockEnabled by onboardingViewModel.appLockEnabled.collectAsStateWithLifecycle()
+    
+    var isAuthenticated by remember { mutableStateOf(false) }
+
     RoutineFlowTheme(darkTheme = darkMode) {
         Surface(
             modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.background
         ) {
-            if (false /* onboarding.completed */) {
+            if (appLockEnabled && !isAuthenticated) {
+                AppLockScreen(
+                    onAuthenticated = { isAuthenticated = true }
+                )
+            } else if (onboarding.completed) {
                 RoutineFlowApp(
                     darkMode = darkMode,
                     onThemeToggle = { darkMode = !darkMode },
                     reducedMotion = reducedMotion,
-                    onReducedMotionChange = onboardingViewModel::setReducedMotion
+                    onReducedMotionChange = onboardingViewModel::setReducedMotion,
+                    appLockEnabled = appLockEnabled,
+                    onAppLockChange = onboardingViewModel::setAppLockEnabled
                 )
             } else {
                 OnboardingScreen(onFinished = {})
@@ -215,13 +228,91 @@ private fun RoutineFlowRoot() {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AppLockScreen(onAuthenticated: () -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val haptics = LocalHapticFeedback.current
+    
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        val fragmentActivity = context as? FragmentActivity ?: return@LaunchedEffect
+        val executor = ContextCompat.getMainExecutor(context)
+        
+        val biometricPrompt = BiometricPrompt(fragmentActivity, executor,
+            object : BiometricPrompt.AuthenticationCallback() {
+                override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                    super.onAuthenticationSucceeded(result)
+                    onAuthenticated()
+                }
+            })
+            
+        val promptInfo = BiometricPrompt.PromptInfo.Builder()
+            .setTitle("RoutineFlow")
+            .setSubtitle("Unlock to access your habits and tasks")
+            .setAllowedAuthenticators(
+                BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.DEVICE_CREDENTIAL
+            )
+            .build()
+            
+        biometricPrompt.authenticate(promptInfo)
+    }
+
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(24.dp)
+        ) {
+            Icon(
+                Icons.Rounded.AutoAwesome,
+                contentDescription = null,
+                modifier = Modifier.size(64.dp),
+                tint = MaterialTheme.colorScheme.primary
+            )
+            Text(
+                "App Locked",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold
+            )
+            FilledTonalButton(
+                onClick = {
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    val fragmentActivity = context as? FragmentActivity ?: return@FilledTonalButton
+                    val executor = ContextCompat.getMainExecutor(context)
+                    val biometricPrompt = BiometricPrompt(fragmentActivity, executor,
+                        object : BiometricPrompt.AuthenticationCallback() {
+                            override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                                super.onAuthenticationSucceeded(result)
+                                onAuthenticated()
+                            }
+                        })
+                    val promptInfo = BiometricPrompt.PromptInfo.Builder()
+                        .setTitle("RoutineFlow")
+                        .setSubtitle("Unlock to access your habits and tasks")
+                        .setAllowedAuthenticators(
+                            BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.DEVICE_CREDENTIAL
+                        )
+                        .build()
+                    biometricPrompt.authenticate(promptInfo)
+                },
+                shape = RoundedCornerShape(16.dp),
+                contentPadding = PaddingValues(horizontal = 32.dp, vertical = 16.dp)
+            ) {
+                Text("Unlock", fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
 @Composable
 private fun RoutineFlowApp(
     darkMode: Boolean,
     onThemeToggle: () -> Unit,
     reducedMotion: Boolean,
     onReducedMotionChange: (Boolean) -> Unit,
+    appLockEnabled: Boolean,
+    onAppLockChange: (Boolean) -> Unit,
     viewModel: RoutineViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -234,6 +325,22 @@ private fun RoutineFlowApp(
     val haptics = LocalHapticFeedback.current
     val addAnimationScope = androidx.compose.runtime.rememberCoroutineScope()
     val waterProgress = remember { androidx.compose.animation.core.Animatable(0f) }
+
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val activity = context as? FragmentActivity
+    androidx.compose.runtime.LaunchedEffect(activity?.intent) {
+        activity?.intent?.action?.let { action ->
+            if (action == "com.routineflow.ACTION_ADD_TASK") {
+                showAddTask = true
+                selectedTab = 1
+                activity.intent.action = null
+            } else if (action == "com.routineflow.ACTION_ADD_HABIT") {
+                showAdd = true
+                selectedTab = 0
+                activity.intent.action = null
+            }
+        }
+    }
 
     fun openAddTaskWithWater() {
         if (addWaterActive || showAddTask) return
@@ -255,9 +362,9 @@ private fun RoutineFlowApp(
                         )
                     )
                 }
-                delay(220)
+                delay(220L)
                 showAddTask = true
-                delay(400)
+                delay(400L)
                 addWaterActive = false
             }
         }
@@ -522,7 +629,7 @@ private fun RoutineFlowApp(
                             drawCircle(
                                 color = Color.White.copy(alpha = if (addPressed) 0.28f else 0.16f),
                                 radius = size.minDimension * 0.34f,
-                                center = androidx.compose.ui.geometry.Offset(
+                                center = Offset(
                                     x = size.width * 0.32f,
                                     y = size.height * 0.24f
                                 )
@@ -626,7 +733,9 @@ private fun RoutineFlowApp(
                         darkMode = darkMode,
                         onThemeToggle = onThemeToggle,
                         reducedMotion = reducedMotion,
-                        onReducedMotionChange = onReducedMotionChange
+                        onReducedMotionChange = onReducedMotionChange,
+                        appLockEnabled = appLockEnabled,
+                        onAppLockChange = onAppLockChange
                     )
                 }
             }
@@ -832,216 +941,6 @@ private fun DrawScope.drawGlassWaterSphere(
 }
 
 @Composable
-private fun RoutineFlowDock(
-    selectedTab: Int,
-    reducedMotion: Boolean,
-    onTabSelected: (Int) -> Unit
-) {
-    val labels = listOf("Today", "Tasks", "Planner", "Gaming", "Progress", "Focus", "Settings")
-    val icons = listOf(
-        Icons.Rounded.Today,
-        Icons.Rounded.Checklist,
-        Icons.Rounded.Event,
-        Icons.Rounded.SportsEsports,
-        Icons.Rounded.Insights,
-        Icons.Rounded.SelfImprovement,
-        Icons.Rounded.Settings
-    )
-    val density = LocalDensity.current
-    val haptics = LocalHapticFeedback.current
-    val isDarkMode = isSystemInDarkTheme()
-
-    var widthPx by remember { mutableFloatStateOf(0f) }
-    var dragging by remember { mutableStateOf(false) }
-    val slotPx = if (labels.isNotEmpty()) widthPx / labels.size else 0f
-
-    // Use Animatable for continuous physics-based tracking, mimicking ClearPDF's DampedDragAnimation
-    val indicatorIndexAnim = remember { androidx.compose.animation.core.Animatable(selectedTab.toFloat()) }
-    val panelOffsetAnim = remember { androidx.compose.animation.core.Animatable(0f) }
-    val pressProgressAnim = remember { androidx.compose.animation.core.Animatable(0f) }
-
-    // Sync external tab changes
-    androidx.compose.runtime.LaunchedEffect(selectedTab) {
-        if (!dragging) {
-            indicatorIndexAnim.animateTo(
-                targetValue = selectedTab.toFloat(),
-                animationSpec = if (reducedMotion) androidx.compose.animation.core.snap() else spring(stiffness = Spring.StiffnessMediumLow)
-            )
-        }
-    }
-
-    fun tabFor(x: Float): Int {
-        if (slotPx <= 0f) return selectedTab
-        return (x / slotPx).toInt().coerceIn(labels.indices)
-    }
-
-    val dockScope = androidx.compose.runtime.rememberCoroutineScope()
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .navigationBarsPadding()
-            .padding(start = 16.dp, end = 16.dp, bottom = 16.dp)
-            .height(72.dp)
-            .graphicsLayer {
-                val scale = androidx.compose.ui.util.lerp(1f, 1.04f, pressProgressAnim.value)
-                scaleX = scale
-                scaleY = scale
-                translationX = panelOffsetAnim.value
-            },
-        contentAlignment = Alignment.Center
-    ) {
-        // Liquid Glass Container Layer
-        GlassSurface(
-            modifier = Modifier.fillMaxSize(),
-            cornerRadius = 36.dp, // Fully rounded capsule
-            elevation = 12.dp,
-            highlighted = true,
-            tint = if (isDarkMode) Color(0xFF1E1E1E).copy(alpha = 0.5f) else Color(0xFFF9F9F9).copy(alpha = 0.6f)
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .onSizeChanged { widthPx = it.width.toFloat() }
-                    .pointerInput(slotPx, reducedMotion) {
-                        awaitEachGesture {
-                            val down = awaitFirstDown(requireUnconsumed = false)
-                            dragging = true
-                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-
-                            // Launch press animation
-                            dockScope.launch {
-                                pressProgressAnim.animateTo(1f, spring(stiffness = Spring.StiffnessMedium))
-                            }
-
-                            var currentX = down.position.x
-                            dockScope.launch {
-                                indicatorIndexAnim.snapTo(currentX / slotPx)
-                            }
-
-                            var released = false
-                            while (!released) {
-                                val event = awaitPointerEvent()
-                                event.changes.forEach { change ->
-                                    if (change.pressed) {
-                                        currentX = change.position.x
-                                        val rawIndex = currentX / slotPx
-
-                                        // Handle drag bounds and elastic panel offset
-                                        val maxIndex = labels.size - 1f
-                                        val overscroll = when {
-                                            rawIndex < 0f -> rawIndex
-                                            rawIndex > maxIndex -> rawIndex - maxIndex
-                                            else -> 0f
-                                        }
-
-                                        dockScope.launch {
-                                            indicatorIndexAnim.snapTo(rawIndex.coerceIn(0f, maxIndex))
-
-                                            // Apply ClearPDF style dampening/elasticity to the panel
-                                            val maxOverscrollPx = 40f
-                                            val pullFraction = (overscroll * slotPx / widthPx).coerceIn(-1f, 1f)
-                                            val elasticOffset = pullFraction * maxOverscrollPx
-                                            panelOffsetAnim.snapTo(elasticOffset)
-                                        }
-                                    } else {
-                                        released = true
-                                    }
-                                }
-                            }
-
-                            dragging = false
-                            val finalTab = tabFor(currentX)
-                            onTabSelected(finalTab)
-
-                            // Release animations
-                            dockScope.launch {
-                                launch { pressProgressAnim.animateTo(0f, spring(stiffness = Spring.StiffnessMediumLow)) }
-                                launch { panelOffsetAnim.animateTo(0f, spring(dampingRatio = 0.6f, stiffness = Spring.StiffnessMedium)) }
-                                launch { indicatorIndexAnim.animateTo(finalTab.toFloat(), spring(stiffness = Spring.StiffnessMediumLow)) }
-                            }
-                        }
-                    }
-            ) {
-                // Interactive Highlight / Active Pill
-                if (slotPx > 0f) {
-                    val indicatorCenter = slotPx * (indicatorIndexAnim.value + 0.5f)
-                    val pillWidth = slotPx * 0.85f
-
-                    // Squeeze effect based on drag velocity/movement
-                    val isSqueezed = dragging
-                    val animatedScaleX by animateFloatAsState(if (isSqueezed) 1.15f else 1f, spring(stiffness = Spring.StiffnessMedium))
-                    val animatedScaleY by animateFloatAsState(if (isSqueezed) 0.85f else 1f, spring(stiffness = Spring.StiffnessMedium))
-
-                    Box(
-                        modifier = Modifier
-                            .width(with(density) { pillWidth.toDp() })
-                            .fillMaxHeight()
-                            .graphicsLayer {
-                                translationX = indicatorCenter - (pillWidth / 2f)
-                                scaleX = animatedScaleX
-                                scaleY = animatedScaleY
-                            }
-                            .padding(vertical = 8.dp)
-                            .clip(RoundedCornerShape(36.dp))
-                            .background(
-                                Brush.verticalGradient(
-                                    colors = listOf(
-                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.35f),
-                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
-                                    )
-                                )
-                            )
-                            .border(
-                                1.dp,
-                                Brush.verticalGradient(
-                                    0f to Color.White.copy(alpha = 0.4f),
-                                    1f to Color.White.copy(alpha = 0.05f)
-                                ),
-                                RoundedCornerShape(36.dp)
-                            )
-                    )
-                }
-
-                Row(Modifier.fillMaxSize()) {
-                    labels.forEachIndexed { index, label ->
-                        val targetIndex = if (dragging) indicatorIndexAnim.value.toInt().coerceIn(labels.indices) else selectedTab
-                        val highlighted = index == targetIndex
-
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxHeight()
-                                .semantics {
-                                    contentDescription = "$label tab${if (index == selectedTab) ", selected" else ""}"
-                                }
-                                .padding(vertical = 12.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                                Icon(
-                                    imageVector = icons[index],
-                                    contentDescription = null,
-                                    tint = if (highlighted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Spacer(Modifier.height(2.dp))
-                                Text(
-                                    text = label,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontSize = 10.sp,
-                                    fontWeight = if (highlighted) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (highlighted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
 private fun RoutineFlowDockClearPdf(
     selectedTab: Int,
     reducedMotion: Boolean,
@@ -1100,18 +999,18 @@ private fun RoutineFlowDockClearPdf(
                 .background(
                     Brush.verticalGradient(
                         listOf(
-                            MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
-                            MaterialTheme.colorScheme.surface.copy(alpha = 0.65f),
-                            MaterialTheme.colorScheme.surface.copy(alpha = 0.8f)
+                            MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
+                            MaterialTheme.colorScheme.surface.copy(alpha = 0.80f),
+                            MaterialTheme.colorScheme.surface.copy(alpha = 0.92f)
                         )
                     )
                 )
                 .border(
                     width = 1.dp,
                     brush = Brush.verticalGradient(
-                        0f to Color.White.copy(alpha = 0.45f),
-                        0.3f to Color.White.copy(alpha = 0.15f),
-                        1f to MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f)
+                        0f to Color.White.copy(alpha = 0.65f),
+                        0.25f to Color.White.copy(alpha = 0.15f),
+                        1f to Color.White.copy(alpha = 0.05f)
                     ),
                     shape = CircleShape
                 )
@@ -1503,6 +1402,17 @@ private fun DailyTreeCard(state: TodayUiState, tasks: List<TaskEntity>) {
                     .background(MaterialTheme.colorScheme.surfaceContainerHighest),
                 contentAlignment = Alignment.Center
             ) {
+                val infiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition()
+                val timeFloat by infiniteTransition.animateFloat(
+                    initialValue = 0f,
+                    targetValue = (2 * Math.PI).toFloat(),
+                    animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                        animation = androidx.compose.animation.core.tween(4000, easing = androidx.compose.animation.core.LinearEasing),
+                        repeatMode = androidx.compose.animation.core.RepeatMode.Restart
+                    ),
+                    label = "magic_particles"
+                )
+
                 Canvas(
                     modifier = Modifier.fillMaxSize()
                 ) {
@@ -1511,7 +1421,7 @@ private fun DailyTreeCard(state: TodayUiState, tasks: List<TaskEntity>) {
 
                     drawIsoTile(centerX, centerY, 140f, 75f, Color(0xFF4ADE80), false)
                     if (animatedGrowth > 0f) {
-                        drawLowPoly3DTree(centerX, centerY, 1.4f, animatedGrowth)
+                        drawLowPoly3DTree(centerX, centerY, 1.4f, animatedGrowth, timeFloat)
                     } else {
                         drawLowPolyRock(centerX, centerY)
                     }
@@ -1920,7 +1830,8 @@ private fun DrawScope.drawLowPoly3DTree(
     isoX: Float,
     isoY: Float,
     scale: Float,
-    completionRatio: Float
+    completionRatio: Float,
+    time: Float = 0f
 ) {
     if (completionRatio <= 0f) return // 0% tasks done -> NO TREE!
 
@@ -2008,12 +1919,32 @@ private fun DrawScope.drawLowPoly3DTree(
         }
         drawPath(rightFoliage, foliageRightColors[tier % 3])
 
-        // Blooming Blossoms & Golden Fruits on 100% Full Growth
+        // Blooming Blossoms & Golden Fruits & Magic Fireflies on 100% Full Growth
         if (growthStage == 5 && tier == tierCount - 1) {
             val blossomColor = Color(0xFFF472B6)
             drawCircle(blossomColor, 4f * scale, Offset(isoX - fW * 0.45f, currentY - foliageH))
             drawCircle(blossomColor, 4f * scale, Offset(isoX + fW * 0.45f, currentY - foliageH * 0.8f))
             drawCircle(Color(0xFFFBBF24), 3.5f * scale, Offset(isoX, currentY - foliageH * 1.25f))
+
+            // Magic Fireflies swirling around the fully grown tree
+            for (i in 0 until 5) {
+                val phaseOffset = i * (Math.PI / 2.5)
+                val hoverX = isoX + kotlin.math.cos(time + phaseOffset).toFloat() * 32f * scale
+                val hoverY = currentY - foliageH - 10f * scale + kotlin.math.sin(time * 1.5 + phaseOffset).toFloat() * 12f * scale
+                
+                // Outer Glow
+                drawCircle(
+                    color = Color.Yellow.copy(alpha = 0.3f),
+                    radius = 3.5f * scale,
+                    center = Offset(hoverX, hoverY)
+                )
+                // Inner Core
+                drawCircle(
+                    color = Color.White.copy(alpha = 0.9f),
+                    radius = 1.2f * scale,
+                    center = Offset(hoverX, hoverY)
+                )
+            }
         }
 
         currentY -= foliageH * 0.72f
@@ -2105,16 +2036,66 @@ private fun MomentumCard(state: TodayUiState) {
                     }
                 )
             }
-            LinearProgressIndicator(
-                progress = { progress },
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(8.dp)
-                    .clip(CircleShape),
-                color = MaterialTheme.colorScheme.primary,
-                trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                strokeCap = StrokeCap.Round
-            )
+                    .height(14.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+            ) {
+                val infiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition()
+                val wavePhase by infiniteTransition.animateFloat(
+                    initialValue = 0f,
+                    targetValue = (2 * Math.PI).toFloat(),
+                    animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                        animation = androidx.compose.animation.core.tween(2000, easing = androidx.compose.animation.core.LinearEasing),
+                        repeatMode = androidx.compose.animation.core.RepeatMode.Restart
+                    ),
+                    label = "liquid_wave"
+                )
+
+                val primaryColor = MaterialTheme.colorScheme.primary
+                val secondaryColor = MaterialTheme.colorScheme.secondary
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    val fillWidth = size.width * progress
+                    if (fillWidth > 0) {
+                        val path = Path().apply {
+                            moveTo(0f, size.height)
+                            lineTo(0f, size.height * 0.3f)
+                            
+                            // Draw liquid wave top edge
+                            val waveCount = 3
+                            val waveStep = fillWidth / 40f
+                            for (i in 0..40) {
+                                val x = i * waveStep
+                                val yOffset = kotlin.math.sin(wavePhase + (x / fillWidth) * Math.PI * 2 * waveCount).toFloat() * 1.5f
+                                lineTo(x, size.height * 0.3f + yOffset)
+                            }
+                            
+                            lineTo(fillWidth, size.height)
+                            close()
+                        }
+                        
+                        drawPath(
+                            path = path,
+                            brush = Brush.horizontalGradient(
+                                colors = listOf(
+                                    primaryColor.copy(alpha = 0.8f),
+                                    secondaryColor.copy(alpha = 0.9f)
+                                )
+                            )
+                        )
+                        
+                        // Top Specular Highlight
+                        drawRoundRect(
+                            color = Color.White.copy(alpha = 0.4f),
+                            topLeft = Offset(4f, 2f),
+                            size = Size(fillWidth.coerceAtMost(size.width - 8f), size.height * 0.25f),
+                            cornerRadius = androidx.compose.ui.geometry.CornerRadius(4f, 4f)
+                        )
+                    }
+                }
+            }
         }
     }
 }
@@ -2377,51 +2358,102 @@ private fun FocusScreen(tasks: List<TaskEntity>) {
                         fontWeight = FontWeight.Bold
                     )
 
+                    val infiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition()
+                    val pulse by infiniteTransition.animateFloat(
+                        initialValue = 0.95f,
+                        targetValue = 1.05f,
+                        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                            animation = androidx.compose.animation.core.tween(2000, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+                            repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
+                        ),
+                        label = "focus_pulse"
+                    )
+                    
                     Box(
-                        modifier = Modifier.size(180.dp),
+                        modifier = Modifier.size(200.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Canvas(modifier = Modifier.fillMaxSize()) {
-                            val stroke = 12.dp.toPx()
-                            val radius = (size.minDimension - stroke) / 2f
-                            val center = Offset(size.width / 2f, size.height / 2f)
-
-                            drawCircle(
-                                color = Color.White.copy(alpha = 0.1f),
-                                radius = radius,
-                                center = center,
-                                style = Stroke(width = stroke)
-                            )
-
-                            drawArc(
-                                brush = Brush.sweepGradient(
-                                    colors = listOf(
-                                        Color(0xFF38BDF8),
-                                        Color(0xFF818CF8),
-                                        Color(0xFF38BDF8)
+                        if (isRunning) {
+                            Box(
+                                modifier = Modifier
+                                    .size(200.dp)
+                                    .graphicsLayer {
+                                        scaleX = pulse
+                                        scaleY = pulse
+                                        alpha = (1.1f - pulse) * 0.5f
+                                    }
+                                    .clip(CircleShape)
+                                    .background(
+                                        Brush.radialGradient(
+                                            colors = listOf(
+                                                MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
+                                                Color.Transparent
+                                            )
+                                        )
                                     )
-                                ),
-                                startAngle = -90f,
-                                sweepAngle = 360f * animatedProgress,
-                                useCenter = false,
-                                topLeft = Offset(stroke / 2f, stroke / 2f),
-                                size = Size(size.width - stroke, size.height - stroke),
-                                style = Stroke(width = stroke, cap = StrokeCap.Round)
                             )
                         }
+                    
+                        Box(
+                            modifier = Modifier.size(180.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Canvas(modifier = Modifier.fillMaxSize()) {
+                                val stroke = 12.dp.toPx()
+                                val radius = (size.minDimension - stroke) / 2f
+                                val center = Offset(size.width / 2f, size.height / 2f)
 
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(
-                                text = timeFormatted,
-                                style = MaterialTheme.typography.headlineLarge,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = if (isRunning) "Deep Focus" else "Paused",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.primary
-                            )
+                                drawCircle(
+                                    color = Color.White.copy(alpha = 0.1f),
+                                    radius = radius,
+                                    center = center,
+                                    style = Stroke(width = stroke)
+                                )
+
+                                drawArc(
+                                    brush = Brush.sweepGradient(
+                                        colors = listOf(
+                                            Color(0xFF38BDF8),
+                                            Color(0xFF818CF8),
+                                            Color(0xFF38BDF8)
+                                        )
+                                    ),
+                                    startAngle = -90f,
+                                    sweepAngle = 360f * animatedProgress,
+                                    useCenter = false,
+                                    topLeft = Offset(stroke / 2f, stroke / 2f),
+                                    size = Size(size.width - stroke, size.height - stroke),
+                                    style = Stroke(width = stroke, cap = StrokeCap.Round)
+                                )
+                                
+                                // Specular Highlight on Timer Ring
+                                drawCircle(
+                                    color = Color.White.copy(alpha = 0.8f),
+                                    radius = stroke / 2f * 0.6f,
+                                    center = Offset(
+                                        x = size.width / 2f,
+                                        y = stroke / 2f
+                                    )
+                                )
+                            }
+
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    text = timeFormatted,
+                                    style = MaterialTheme.typography.headlineLarge,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.graphicsLayer {
+                                        scaleX = if (isRunning) pulse else 1f
+                                        scaleY = if (isRunning) pulse else 1f
+                                    }
+                                )
+                                Text(
+                                    text = if (isRunning) "Deep Focus" else "Paused",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
                         }
                     }
 
@@ -3121,7 +3153,7 @@ private fun ProgressScreen(state: TodayUiState) {
                             Text(
                                 text = "Level $level",
                                 style = MaterialTheme.typography.headlineSmall,
-                                fontWeight = FontWeight.Bold
+                                fontWeight = FontWeight.ExtraBold
                             )
                             Text(
                                 text = "$achievementCount achievements unlocked",
@@ -3129,11 +3161,24 @@ private fun ProgressScreen(state: TodayUiState) {
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
+                        
+                        val infiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition()
+                        val xpFloat by infiniteTransition.animateFloat(
+                            initialValue = -3f,
+                            targetValue = 3f,
+                            animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                                animation = androidx.compose.animation.core.tween(1500, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+                                repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
+                            ),
+                            label = "xp_float"
+                        )
+                        
                         Text(
                             text = "${state.xp} XP",
-                            style = MaterialTheme.typography.titleLarge,
+                            style = MaterialTheme.typography.headlineMedium,
                             color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.ExtraBold,
+                            modifier = Modifier.offset(y = xpFloat.dp)
                         )
                     }
                     LinearProgressIndicator(
@@ -3282,6 +3327,18 @@ private fun WeeklyGraphs(activity: Map<LocalDate, Int>) {
 
 @Composable
 private fun CompletionBarChart(days: List<LocalDate>, values: List<Int>, maxValue: Int) {
+    var isVisible by remember { mutableStateOf(false) }
+    val animatedProgress by animateFloatAsState(
+        targetValue = if (isVisible) 1f else 0f,
+        animationSpec = spring(dampingRatio = 0.7f, stiffness = 100f),
+        label = "chart_growth"
+    )
+
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(100)
+        isVisible = true
+    }
+
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         val primaryColor = MaterialTheme.colorScheme.primary
         Canvas(
@@ -3293,24 +3350,44 @@ private fun CompletionBarChart(days: List<LocalDate>, values: List<Int>, maxValu
             val slot = size.width / values.size
             val barWidth = slot * .52f
             values.forEachIndexed { index, value ->
-                val barHeight = size.height * value.toFloat() / maxValue
+                val targetHeight = size.height * value.toFloat() / maxValue
+                val currentHeight = targetHeight * animatedProgress
                 val left = index * slot + (slot - barWidth) / 2f
+                
+                // Background Track
                 drawRoundRect(
                     color = primaryColor.copy(alpha = .12f),
                     topLeft = Offset(left, 0f),
                     size = Size(barWidth, size.height),
                     cornerRadius = androidx.compose.ui.geometry.CornerRadius(12f, 12f)
                 )
+
+                // Foreground Fill
                 drawRoundRect(
-                    color = primaryColor.copy(
-                        alpha = .45f + .55f * value.toFloat() / maxValue
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            primaryColor.copy(alpha = 0.85f),
+                            primaryColor.copy(alpha = 0.35f)
+                        ),
+                        startY = size.height - currentHeight,
+                        endY = size.height
                     ),
-                    topLeft = Offset(left, size.height - barHeight),
-                    size = Size(barWidth, barHeight),
+                    topLeft = Offset(left, size.height - currentHeight),
+                    size = Size(barWidth, currentHeight),
                     cornerRadius = androidx.compose.ui.geometry.CornerRadius(12f, 12f)
                 )
+
+                // Top Specular Highlight
+                if (currentHeight > 10f) {
+                    drawOval(
+                        color = Color.White.copy(alpha = 0.5f),
+                        topLeft = Offset(left + barWidth * 0.15f, size.height - currentHeight + 2f),
+                        size = Size(barWidth * 0.7f, 4f)
+                    )
+                }
             }
         }
+        
         Row(Modifier.fillMaxWidth()) {
             days.forEach { day ->
                 Text(
@@ -3331,6 +3408,18 @@ private fun ActivityLineChart(values: List<Int>, maxValue: Int) {
     val onSurfaceColor = MaterialTheme.colorScheme.onSurface
     val surfaceColor = MaterialTheme.colorScheme.surface
 
+    var isVisible by remember { mutableStateOf(false) }
+    val animatedProgress by animateFloatAsState(
+        targetValue = if (isVisible) 1f else 0f,
+        animationSpec = androidx.compose.animation.core.tween(1000, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+        label = "line_chart_reveal"
+    )
+
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(200)
+        isVisible = true
+    }
+
     Canvas(
         Modifier
             .fillMaxWidth()
@@ -3344,6 +3433,8 @@ private fun ActivityLineChart(values: List<Int>, maxValue: Int) {
                 y = size.height - value.toFloat() / maxValue * size.height
             )
         }
+        
+        // Draw background grid lines
         for (row in 1..3) {
             val y = size.height * row / 4f
             drawLine(
@@ -3353,20 +3444,53 @@ private fun ActivityLineChart(values: List<Int>, maxValue: Int) {
                 strokeWidth = 1.dp.toPx()
             )
         }
+        
         if (points.size > 1) {
             val path = Path().apply {
                 moveTo(points.first().x, points.first().y)
                 points.drop(1).forEach { lineTo(it.x, it.y) }
             }
-            drawPath(
-                path = path,
-                color = secondaryColor,
-                style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round)
-            )
-        }
-        points.forEach { point ->
-            drawCircle(surfaceColor, 5.dp.toPx(), point)
-            drawCircle(secondaryColor, 3.dp.toPx(), point)
+            
+            // Mask the path based on the animation progress
+            clipRect(right = size.width * animatedProgress) {
+                // Gradient fill under the line
+                val fillPath = Path().apply {
+                    addPath(path)
+                    lineTo(points.last().x, size.height)
+                    lineTo(points.first().x, size.height)
+                    close()
+                }
+                
+                drawPath(
+                    path = fillPath,
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            secondaryColor.copy(alpha = 0.3f),
+                            Color.Transparent
+                        )
+                    )
+                )
+
+                // Draw the line itself
+                drawPath(
+                    path = path,
+                    color = secondaryColor,
+                    style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round)
+                )
+                
+                // Draw points
+                points.forEach { point ->
+                    drawCircle(surfaceColor, 5.dp.toPx(), point)
+                    drawCircle(secondaryColor, 3.dp.toPx(), point)
+                    
+                    // Specular highlight on dots
+                    drawCircle(
+                        color = Color.White.copy(alpha = 0.8f),
+                        radius = 1.5.dp.toPx(),
+                        center = Offset(point.x - 1.dp.toPx(), point.y - 1.dp.toPx())
+                    )
+                }
+            }
         }
     }
 }
@@ -3433,7 +3557,9 @@ private fun SettingsScreen(
     darkMode: Boolean,
     onThemeToggle: () -> Unit,
     reducedMotion: Boolean,
-    onReducedMotionChange: (Boolean) -> Unit
+    onReducedMotionChange: (Boolean) -> Unit,
+    appLockEnabled: Boolean,
+    onAppLockChange: (Boolean) -> Unit
 ) {
     AdaptiveLazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -3500,6 +3626,36 @@ private fun SettingsScreen(
                                 Icons.Rounded.Palette,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.secondary
+                            )
+                        }
+                    )
+                }
+            }
+        }
+        item {
+            GlassSurface(
+                modifier = Modifier.fillMaxWidth(),
+                cornerRadius = 22.dp,
+                highlighted = true,
+                elevation = 8.dp
+            ) {
+                Column {
+                    ListItem(
+                        headlineContent = { Text("App Lock") },
+                        supportingContent = {
+                            Text(if (appLockEnabled) "Biometric authentication required to open app" else "App lock disabled")
+                        },
+                        leadingContent = {
+                            Icon(
+                                Icons.Rounded.Settings,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        },
+                        trailingContent = {
+                            Switch(
+                                checked = appLockEnabled,
+                                onCheckedChange = onAppLockChange
                             )
                         }
                     )
