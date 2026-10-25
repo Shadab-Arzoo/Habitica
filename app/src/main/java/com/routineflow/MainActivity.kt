@@ -1000,7 +1000,7 @@ private fun RoutineFlowDockClearPdf(
             beamProgress.animateTo(
                 1f,
                 animationSpec = androidx.compose.animation.core.tween(
-                    durationMillis = 350,
+                    durationMillis = 420,
                     easing = androidx.compose.animation.core.FastOutSlowInEasing
                 )
             )
@@ -1144,32 +1144,87 @@ private fun RoutineFlowDockClearPdf(
             
             if (slotPx > 0f && beamProgress.value > 0f) {
                 Canvas(modifier = Modifier.fillMaxSize()) {
+                    val progress = beamProgress.value
                     val targetX = slotPx * (beamTargetIndex + 0.5f)
                     val startX = if (beamOriginLeft) 0f else size.width
-                    
-                    val currentHeadX = androidx.compose.ui.util.lerp(startX, targetX, beamProgress.value)
-                    val tailLength = 140f
-                    val tailX = if (beamOriginLeft) currentHeadX - tailLength else currentHeadX + tailLength
-                    
-                    val colors = if (beamOriginLeft) {
-                        listOf(Color.Transparent, Color(0xFF38BDF8), Color.White)
-                    } else {
-                        listOf(Color.White, Color(0xFF38BDF8), Color.Transparent)
-                    }
-                    val startGradientX = if (beamOriginLeft) tailX else currentHeadX
-                    val endGradientX = if (beamOriginLeft) currentHeadX else tailX
-                    
-                    drawLine(
-                        brush = Brush.horizontalGradient(
-                            colors = colors,
-                            startX = startGradientX,
-                            endX = endGradientX
-                        ),
-                        start = Offset(tailX, size.height / 2f),
-                        end = Offset(currentHeadX, size.height / 2f),
-                        strokeWidth = 3.dp.toPx(),
-                        cap = StrokeCap.Round
+                    val midY = size.height / 2f
+
+                    // Multi-Stream Energy Trails (Top, Center, Bottom)
+                    val streams = listOf(
+                        Triple(-8.dp.toPx(), 0.92f, Color(0xFF38BDF8)),  // Top Sky Cyan Stream
+                        Triple(0.dp.toPx(), 1.00f, Color(0xFF818CF8)),   // Center Indigo Stream
+                        Triple(8.dp.toPx(), 1.08f, Color(0xFFF472B6))    // Bottom Neon Pink Stream
                     )
+
+                    streams.forEach { (yOffset, speedMult, accentColor) ->
+                        val effectiveProgress = (progress * speedMult).coerceIn(0f, 1f)
+                        val currentHeadX = androidx.compose.ui.util.lerp(startX, targetX, effectiveProgress)
+                        val tailLength = 160f
+                        val tailX = if (beamOriginLeft) currentHeadX - tailLength else currentHeadX + tailLength
+
+                        val colors = if (beamOriginLeft) {
+                            listOf(Color.Transparent, accentColor.copy(alpha = 0.8f), Color.White)
+                        } else {
+                            listOf(Color.White, accentColor.copy(alpha = 0.8f), Color.Transparent)
+                        }
+                        val startGradientX = if (beamOriginLeft) tailX else currentHeadX
+                        val endGradientX = if (beamOriginLeft) currentHeadX else tailX
+                        val streamY = midY + yOffset
+
+                        // 1. Ambient Outer Glow Line
+                        drawLine(
+                            brush = Brush.horizontalGradient(
+                                colors = listOf(Color.Transparent, accentColor.copy(alpha = 0.35f), Color.White.copy(alpha = 0.5f)),
+                                startX = startGradientX,
+                                endX = endGradientX
+                            ),
+                            start = Offset(tailX, streamY),
+                            end = Offset(currentHeadX, streamY),
+                            strokeWidth = 9.dp.toPx(),
+                            cap = StrokeCap.Round
+                        )
+
+                        // 2. Core Intense Energy Beam
+                        drawLine(
+                            brush = Brush.horizontalGradient(
+                                colors = colors,
+                                startX = startGradientX,
+                                endX = endGradientX
+                            ),
+                            start = Offset(tailX, streamY),
+                            end = Offset(currentHeadX, streamY),
+                            strokeWidth = 3.dp.toPx(),
+                            cap = StrokeCap.Round
+                        )
+                    }
+
+                    // Target Impact Energy Ring & Sparkle Burst
+                    if (progress > 0.65f) {
+                        val burstAlpha = ((progress - 0.65f) / 0.35f).coerceIn(0f, 1f)
+                        val burstRadius = (12.dp.toPx() + 18.dp.toPx() * burstAlpha)
+
+                        // Outer Glowing Burst Ring
+                        drawCircle(
+                            brush = Brush.radialGradient(
+                                colors = listOf(
+                                    Color(0xFF38BDF8).copy(alpha = (1f - burstAlpha) * 0.6f),
+                                    Color(0xFF818CF8).copy(alpha = (1f - burstAlpha) * 0.2f),
+                                    Color.Transparent
+                                ),
+                                center = Offset(targetX, midY),
+                                radius = burstRadius * 1.5f
+                            ),
+                            radius = burstRadius * 1.5f,
+                            center = Offset(targetX, midY)
+                        )
+
+                        // Center Impact Glint
+                        drawCircle(
+                            color = Color.White.copy(alpha = (1f - burstAlpha) * 0.9f),
+                            radius = 6.dp.toPx() * (1f - burstAlpha),
+                            center = Offset(targetX, midY)
+                        )
+                    }
                 }
             }
             
