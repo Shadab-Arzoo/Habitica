@@ -1173,19 +1173,22 @@ private fun AdaptiveLazyColumn(
     verticalArrangement: Arrangement.Vertical,
     content: LazyListScope.() -> Unit
 ) {
-    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+    val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+    val screenWidth = configuration.screenWidthDp.dp
+    
+    Box(modifier = modifier.fillMaxSize()) {
         val contentWidth = when {
-            maxWidth >= 1000.dp -> LiquidGlassTokens.wideContentWidth
-            maxWidth >= 600.dp -> LiquidGlassTokens.compactContentWidth
-            else -> maxWidth
+            screenWidth >= 1000.dp -> LiquidGlassTokens.wideContentWidth
+            screenWidth >= 600.dp -> LiquidGlassTokens.compactContentWidth
+            else -> screenWidth
         }
         LazyColumn(
             modifier = Modifier
                 .width(contentWidth)
                 .align(Alignment.TopCenter),
             contentPadding = PaddingValues(
-                start = if (maxWidth >= 600.dp) contentPadding.calculateLeftPadding(androidx.compose.ui.unit.LayoutDirection.Ltr) + 8.dp else contentPadding.calculateLeftPadding(androidx.compose.ui.unit.LayoutDirection.Ltr),
-                end = if (maxWidth >= 600.dp) contentPadding.calculateRightPadding(androidx.compose.ui.unit.LayoutDirection.Ltr) + 8.dp else contentPadding.calculateRightPadding(androidx.compose.ui.unit.LayoutDirection.Ltr),
+                start = if (screenWidth >= 600.dp) contentPadding.calculateLeftPadding(androidx.compose.ui.unit.LayoutDirection.Ltr) + 8.dp else contentPadding.calculateLeftPadding(androidx.compose.ui.unit.LayoutDirection.Ltr),
+                end = if (screenWidth >= 600.dp) contentPadding.calculateRightPadding(androidx.compose.ui.unit.LayoutDirection.Ltr) + 8.dp else contentPadding.calculateRightPadding(androidx.compose.ui.unit.LayoutDirection.Ltr),
                 top = contentPadding.calculateTopPadding(),
                 bottom = androidx.compose.ui.unit.max(contentPadding.calculateBottomPadding(), 120.dp)
             ),
@@ -2132,171 +2135,7 @@ private fun RecoveryCard() {
     }
 }
 
-@Composable
-private fun RecoveryScreen(
-    state: TodayUiState,
-    tasks: List<TaskEntity>
-) {
-    AdaptiveLazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(
-            horizontal = LiquidGlassTokens.contentHorizontalPadding,
-            vertical = LiquidGlassTokens.pageTopSpacing
-        ),
-        verticalArrangement = Arrangement.spacedBy(LiquidGlassTokens.cardSpacing)
-    ) {
-        item {
-            GlassSurface(
-                modifier = Modifier.fillMaxWidth(),
-                cornerRadius = LiquidGlassTokens.cardRadius,
-                highlighted = true
-            ) {
-                Column(
-                    modifier = Modifier.padding(LiquidGlassTokens.contentHorizontalPadding),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = "Restart without starting over",
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = if (state.recoveryCount > 0) {
-                            "You have a gentle recovery plan ready. Pick one small action and rebuild momentum."
-                        } else {
-                            "Recovery appears after missed opportunities. You can also use this space to choose a smaller next step."
-                        },
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    SuggestionChip(
-                        onClick = { },
-                        label = {
-                            Text(
-                                if (state.recoveryCount > 0) {
-                                    "${state.recoveryCount} recovery suggestion${if (state.recoveryCount == 1) "" else "s"}"
-                                } else {
-                                    "No active suggestions"
-                                }
-                            )
-                        },
-                        icon = {
-                            Icon(
-                                Icons.Rounded.LocalFlorist,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                    )
-                }
-            }
-        }
-        item {
-            Text(
-                text = "Smallest useful step",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
-        }
-        item {
-            val completedActions = state.completedCount + tasks.count { it.completed }
-            val minimumActions = 3
-            val minimumProgress = (completedActions.toFloat() / minimumActions).coerceIn(0f, 1f)
-            GlassSurface(
-                modifier = Modifier.fillMaxWidth(),
-                cornerRadius = LiquidGlassTokens.cardRadius,
-                tint = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
-            ) {
-                Column(
-                    modifier = Modifier.padding(LiquidGlassTokens.contentHorizontalPadding),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Text(
-                                text = "Minimum Viable Day",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = "Three small wins are enough to keep momentum.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Text(
-                            text = "$completedActions/$minimumActions",
-                            style = MaterialTheme.typography.titleLarge,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                    LinearProgressIndicator(
-                        progress = { minimumProgress },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(8.dp)
-                            .clip(CircleShape),
-                        color = MaterialTheme.colorScheme.primary,
-                        trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                        strokeCap = StrokeCap.Round
-                    )
-                    Text(
-                        text = if (minimumProgress >= 1f) {
-                            "You protected the day. Anything else is a bonus."
-                        } else {
-                            "${minimumActions - completedActions.coerceAtMost(minimumActions)} small win${if (minimumActions - completedActions.coerceAtMost(minimumActions) == 1) "" else "s"} left."
-                        },
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        }
-        item {
-            GlassSurface(
-                modifier = Modifier.fillMaxWidth(),
-                cornerRadius = LiquidGlassTokens.cardRadius
-            ) {
-                Column(
-                    modifier = Modifier.padding(LiquidGlassTokens.contentHorizontalPadding),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Text(
-                        text = "Choose one task under 15 minutes",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    val shortTask = tasks
-                        .filterNot { it.completed }
-                        .minByOrNull { it.estimatedMinutes ?: Int.MAX_VALUE }
-                    Text(
-                        text = shortTask?.title ?: "Add a quick task to make today easier.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    if (shortTask != null) {
-                        AssistChip(
-                            onClick = { },
-                            label = { Text("${shortTask.estimatedMinutes ?: 0} min") },
-                            leadingIcon = {
-                                Icon(
-                                    Icons.Rounded.Check,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
+
 
 @Composable
 private fun FocusScreen(tasks: List<TaskEntity>) {
