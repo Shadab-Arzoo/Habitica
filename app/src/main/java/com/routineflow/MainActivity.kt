@@ -1732,7 +1732,7 @@ private fun GardenScreen(state: TodayUiState, tasks: List<TaskEntity>) {
                     }
                 }
 
-                    // View Mode Switcher (2.5D Isometric vs 3D Perspective)
+                    // View Mode Switcher (Static vs Movable Camera)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1746,11 +1746,15 @@ private fun GardenScreen(state: TodayUiState, tasks: List<TaskEntity>) {
                             color = if (!is3DMode) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
                             modifier = Modifier
                                 .weight(1f)
-                                .clickable { is3DMode = false }
+                                .clickable { 
+                                    is3DMode = false 
+                                    rotationAngle = 0f
+                                    tiltAngle = 0.45f
+                                }
                         ) {
                             Box(Modifier.padding(vertical = 8.dp), contentAlignment = Alignment.Center) {
                                 Text(
-                                    "2.5D Isometric Grid",
+                                    "Static Grid View",
                                     style = MaterialTheme.typography.labelMedium,
                                     fontWeight = if (!is3DMode) FontWeight.Bold else FontWeight.Medium,
                                     color = if (!is3DMode) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
@@ -1767,7 +1771,7 @@ private fun GardenScreen(state: TodayUiState, tasks: List<TaskEntity>) {
                         ) {
                             Box(Modifier.padding(vertical = 8.dp), contentAlignment = Alignment.Center) {
                                 Text(
-                                    "3D Perspective Forest",
+                                    "Movable Free Camera",
                                     style = MaterialTheme.typography.labelMedium,
                                     fontWeight = if (is3DMode) FontWeight.Bold else FontWeight.Medium,
                                     color = if (is3DMode) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
@@ -1779,29 +1783,7 @@ private fun GardenScreen(state: TodayUiState, tasks: List<TaskEntity>) {
             }
         }
 
-        if (is3DMode) {
-            item {
-                OutlinedCard(Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
-                    Row(
-                        Modifier
-                            .padding(horizontal = 16.dp, vertical = 8.dp)
-                            .fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("3D Camera Angle:", style = MaterialTheme.typography.labelMedium)
-                        Spacer(Modifier.width(12.dp))
-                        Slider(
-                            value = tiltAngle,
-                            onValueChange = { tiltAngle = it },
-                            valueRange = 0.2f..0.8f,
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                }
-            }
-        }
-
-        // Low-Poly 3D Garden Canvas
+        // Low-Poly Garden Canvas
         item {
             ElevatedCard(
                 modifier = Modifier.fillMaxWidth(),
@@ -1809,11 +1791,21 @@ private fun GardenScreen(state: TodayUiState, tasks: List<TaskEntity>) {
             ) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     val primaryColor = MaterialTheme.colorScheme.primary
+                    
+                    if (is3DMode) {
+                        Text(
+                            "Swipe the screen to rotate and tilt the camera.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.fillMaxWidth(),
+                            textAlign = TextAlign.Center
+                        )
+                    }
 
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(340.dp)
+                            .height(if (is3DMode) 400.dp else 340.dp)
                             .clip(RoundedCornerShape(18.dp))
                             .background(MaterialTheme.colorScheme.surfaceContainerHighest)
                     ) {
