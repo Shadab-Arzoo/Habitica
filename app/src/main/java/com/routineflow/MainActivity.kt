@@ -4119,17 +4119,23 @@ private fun ProgressScreen(state: TodayUiState) {
                             Text(
                                 text = "Consistency",
                                 style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = if (state.currentStreak == 0) "Start a new streak today"
-                                else "${state.currentStreak} day streak 🔥",
+                                text = when (state.currentStreak) {
+                                    0 -> "Start a new streak today"
+                                    1 -> "1 Day Streak 🔥"
+                                    else -> "${state.currentStreak} Day Streak 🔥"
+                                },
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.SemiBold
                             )
                         }
+                        val totalCheckIns = state.activity.values.sum()
                         Text(
-                            text = "${state.activity.values.sum()} check-ins",
+                            text = if (totalCheckIns == 1) "1 check-in" else "$totalCheckIns check-ins",
                             style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.primary,
                             fontWeight = FontWeight.Bold
@@ -4396,46 +4402,62 @@ private fun ActivityLineChart(values: List<Int>, maxValue: Int) {
 
 @Composable
 private fun ContributionHeatmap(activity: Map<LocalDate, Int>) {
-    val start = LocalDate.now().minusDays(111)
+    val columns = 16
+    val rows = 7
+    val start = LocalDate.now().minusDays((columns * rows - 1).toLong())
     val max = activity.values.maxOrNull()?.coerceAtLeast(1) ?: 1
     var selectedDateInfo by remember { mutableStateOf<Pair<LocalDate, Int>?>(null) }
 
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        repeat(7) { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                repeat(16) { column ->
-                    val date = start.plusDays((column * 7L + row).coerceAtMost(111))
-                    val count = activity[date] ?: 0
-                    val intensity = count.toFloat() / max
-                    Box(
-                        Modifier
-                            .size(15.dp)
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(heatmapColor(intensity))
-                            .clickable {
-                                selectedDateInfo = date to count
-                            }
-                            .semantics {
-                                contentDescription = "$date: $count completions"
-                            }
-                    )
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        val spacing = 4.dp
+        val totalSpacing = spacing * (columns - 1)
+        val boxWidth = ((this.maxWidth - totalSpacing) / columns).coerceAtLeast(12.dp)
+
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            repeat(rows) { row ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    repeat(columns) { column ->
+                        val date = start.plusDays((column * 7L + row).coerceAtMost((columns * rows - 1).toLong()))
+                        val count = activity[date] ?: 0
+                        val intensity = count.toFloat() / max
+                        Box(
+                            modifier = Modifier
+                                .size(boxWidth)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(heatmapColor(intensity))
+                                .clickable {
+                                    selectedDateInfo = date to count
+                                }
+                                .semantics {
+                                    contentDescription = "$date: $count completions"
+                                }
+                        )
+                    }
                 }
             }
-        }
 
-        selectedDateInfo?.let { (date, count) ->
-            Surface(
-                shape = RoundedCornerShape(12.dp),
-                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.8f),
-                modifier = Modifier.padding(top = 4.dp)
-            ) {
-                Text(
-                    text = "${date.format(DateTimeFormatter.ofPattern("MMM d, yyyy", Locale.getDefault()))}: $count check-in${if (count != 1) "s" else ""}",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-                )
+            selectedDateInfo?.let { (date, count) ->
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.85f),
+                    modifier = Modifier.padding(top = 8.dp)
+                ) {
+                    Text(
+                        text = "${date.format(DateTimeFormatter.ofPattern("EEEE, MMM d, yyyy", Locale.getDefault()))}: $count check-in${if (count != 1) "s" else ""}",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                    )
+                }
             }
         }
     }
