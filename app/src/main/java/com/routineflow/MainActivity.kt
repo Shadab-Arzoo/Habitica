@@ -480,6 +480,14 @@ private fun RoutineFlowApp(
                         }
                     }
 
+                    // Click Animation States
+                    var iconClickPulse by remember { mutableFloatStateOf(1f) }
+                    val animatedClickPulse by animateFloatAsState(
+                        targetValue = iconClickPulse,
+                        animationSpec = spring(dampingRatio = 0.4f, stiffness = 400f),
+                        label = "header_icon_click"
+                    )
+                    
                     var iconRotation by remember { mutableFloatStateOf(0f) }
                     val animatedIconRotation by animateFloatAsState(
                         targetValue = iconRotation,
@@ -490,6 +498,10 @@ private fun RoutineFlowApp(
                     Box(
                         modifier = Modifier
                             .size(54.dp)
+                            .graphicsLayer {
+                                scaleX = animatedClickPulse
+                                scaleY = animatedClickPulse
+                            }
                             .shadow(
                                 elevation = 12.dp,
                                 shape = CircleShape,
@@ -522,7 +534,6 @@ private fun RoutineFlowApp(
                                         iconRotation += dragAmount.x + dragAmount.y
                                     },
                                     onDragEnd = {
-                                        // Snap to nearest 360 degree mark on release
                                         iconRotation = kotlin.math.round(iconRotation / 360f) * 360f
                                     }
                                 )
@@ -532,7 +543,12 @@ private fun RoutineFlowApp(
                                 indication = null
                             ) {
                                 haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                iconRotation += 360f
+                                // Trigger playful bouncy scale pulse
+                                addAnimationScope.launch {
+                                    iconClickPulse = 0.75f // Compress in
+                                    kotlinx.coroutines.delay(100)
+                                    iconClickPulse = 1f    // Spring out
+                                }
                             },
                         contentAlignment = Alignment.Center
                     ) {
@@ -1760,53 +1776,7 @@ private fun GardenScreen(state: TodayUiState, tasks: List<TaskEntity>) {
                     }
                 }
 
-                    // View Mode Switcher (Static vs Movable Camera)
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(MaterialTheme.colorScheme.surfaceContainerHighest)
-                            .padding(4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Surface(
-                            shape = RoundedCornerShape(10.dp),
-                            color = if (!is3DMode) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
-                            modifier = Modifier
-                                .weight(1f)
-                                .clickable { 
-                                    is3DMode = false 
-                                    rotationAngle = 0f
-                                    tiltAngle = 0.45f
-                                }
-                        ) {
-                            Box(Modifier.padding(vertical = 8.dp), contentAlignment = Alignment.Center) {
-                                Text(
-                                    "Static Grid View",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = if (!is3DMode) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (!is3DMode) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-
-                        Surface(
-                            shape = RoundedCornerShape(10.dp),
-                            color = if (is3DMode) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
-                            modifier = Modifier
-                                .weight(1f)
-                                .clickable { is3DMode = true }
-                        ) {
-                            Box(Modifier.padding(vertical = 8.dp), contentAlignment = Alignment.Center) {
-                                Text(
-                                    "Movable Free Camera",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = if (is3DMode) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (is3DMode) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                    }
+                    // The View Mode Switcher has been replaced by floating icon toggles.
                 }
             }
         }
@@ -1817,23 +1787,13 @@ private fun GardenScreen(state: TodayUiState, tasks: List<TaskEntity>) {
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(24.dp)
             ) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Box {
                     val primaryColor = MaterialTheme.colorScheme.primary
-                    
-                    if (is3DMode) {
-                        Text(
-                            "Swipe the screen to rotate and tilt the camera.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.fillMaxWidth(),
-                            textAlign = TextAlign.Center
-                        )
-                    }
 
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(if (is3DMode) 400.dp else 340.dp)
+                            .height(400.dp)
                             .clip(RoundedCornerShape(18.dp))
                             .background(MaterialTheme.colorScheme.surfaceContainerHighest)
                     ) {
@@ -1852,69 +1812,151 @@ private fun GardenScreen(state: TodayUiState, tasks: List<TaskEntity>) {
                             modifier = Modifier
                                 .fillMaxSize()
                                 .graphicsLayer {
-                                    rotationY = if (is3DMode) rotationAngle else 0f
-                                    cameraDistance = 24f
-                                }
-                                .pointerInput(is3DMode, tiltAngle) {
-                                    detectDragGestures { change, dragAmount ->
-                                        change.consume()
-                                        if (is3DMode) {
-                                            rotationAngle = (rotationAngle + dragAmount.x * 0.45f)
-                                                .coerceIn(-55f, 55f)
-                                            tiltAngle = (tiltAngle - dragAmount.y / size.height * 0.25f)
-                                                .coerceIn(0.2f, 0.8f)
-                                        }
+                                // No longer skewing 2D graphics, using actual 3D math
+                            }
+                            .pointerInput(is3DMode, tiltAngle) {
+                                detectDragGestures { change, dragAmount ->
+                                    change.consume()
+                                    if (is3DMode) {
+                                        // Orbit camera directly (0 to 360)
+                                        rotationAngle = (rotationAngle + dragAmount.x * 0.5f) % 360f
+                                        // Pitch camera (top down vs almost flat)
+                                        tiltAngle = (tiltAngle - dragAmount.y / size.height * 1.5f)
+                                            .coerceIn(0.1f, 1.0f)
                                     }
                                 }
+                            }
                         ) {
                             val tileWidth = size.width / 8f
                             val tileHeight = tileWidth * 0.52f
-                            val startX = size.width / 2f
-                            val startY = if (is3DMode) size.height * (1f - tiltAngle) else 60.dp.toPx()
+                            
+                            // Free Cam Camera Logic
+                            val cameraYaw = Math.toRadians(rotationAngle.toDouble())
+                            val cameraPitch = Math.toRadians((tiltAngle * 90f).toDouble())
+                            val sinYaw = kotlin.math.sin(cameraYaw).toFloat()
+                            val cosYaw = kotlin.math.cos(cameraYaw).toFloat()
+                            val sinPitch = kotlin.math.sin(cameraPitch).toFloat()
+                            val cosPitch = kotlin.math.cos(cameraPitch).toFloat()
+                            
+                            val cameraDistance = 20f
 
-                            pastDays.forEachIndexed { index, dayDate ->
+                            // Convert days into 3D sorted array
+                            val renderPass = pastDays.mapIndexed { index, dayDate ->
                                 val row = index / 7
                                 val col = index % 7
+                                
+                                // Local 3D Coordinates (Centered at col=3, row=1.5)
+                                val lx = (col - 3f) * tileWidth * 1.05f
+                                val lz = (row - 1.5f) * tileWidth * 1.05f
+                                
+                                // Apply Yaw Rotation (orbit)
+                                val rx = lx * cosYaw - lz * sinYaw
+                                val rz = lx * sinYaw + lz * cosYaw
+                                
+                                // Projected depth/scale
+                                val depth = cameraDistance + rz * cosPitch
+                                val scale = cameraDistance / depth.coerceAtLeast(0.1f)
+                                
+                                // Screen X/Y
+                                val screenX = size.width / 2f + rx * scale
+                                val screenY = size.height / 2f + (rz * sinPitch) * scale
+                                
+                                Triple(index, depth, Triple(screenX, screenY, scale))
+                            }.sortedByDescending { it.second } // Draw furthest first (painters algorithm)
+
+                            renderPass.forEach { (index, _, coords) ->
+                                val dayDate = pastDays[index]
+                                val screenX = coords.first
+                                val screenY = coords.second
+                                val scale = coords.third
+
                                 val completedTasks = state.taskActivity[dayDate] ?: 0
                                 val dayRatio = treeRatio(completedTasks, tasks.size.coerceAtLeast(1))
-
-                                val isoX = if (!is3DMode) {
-                                    startX + (col - row) * (tileWidth * 0.48f)
-                                } else {
-                                    val depth = 1.0f + row * 0.35f
-                                    val scale = 1.0f / depth
-                                    startX + (col - 3f) * (tileWidth * scale * 0.9f)
-                                }
-
-                                val isoY = if (!is3DMode) {
-                                    startY + (col + row) * (tileHeight * 0.42f)
-                                } else {
-                                    startY + row * (tileHeight * 0.85f * (1.2f - tiltAngle))
-                                }
-
                                 val isSelected = index == selectedDayIndex
+                                
                                 val tileColor = when {
                                     isSelected -> primaryColor
                                     completedTasks > 0 -> Color(0xFF4ADE80) // Lush green grass
                                     else -> Color(0xFF1E293B) // Obsidian/slate dry earth tile
                                 }
 
-                                // 1. Draw 3D Isometric Land Tile
-                                drawIsoTile(isoX, isoY, tileWidth, tileHeight, tileColor, isSelected)
+                                // Custom elliptical floating island base for free cam
+                                val islandW = tileWidth * scale
+                                val islandH = islandW * sinPitch
+                                
+                                // Dirt Cylinder
+                                drawOval(
+                                    color = Color(0xFF475569),
+                                    topLeft = Offset(screenX - islandW/2, screenY - islandH/2 + 8f * scale),
+                                    size = Size(islandW, islandH)
+                                )
+                                // Grass Top
+                                drawOval(
+                                    color = tileColor,
+                                    topLeft = Offset(screenX - islandW/2, screenY - islandH/2),
+                                    size = Size(islandW, islandH)
+                                )
 
-                                // 2. Draw Low-Poly Voxel 3D Tree or Stone for 0%
-                                val scale = if (is3DMode) 1.0f / (1.0f + row * 0.25f) else 1.0f
+                                // Draw Low-Poly Voxel 3D Tree or Stone
                                 if (dayRatio > 0f) {
-                                    // Use smaller scale for forest view so they don't overlap too much
-                                    drawLowPoly3DTree(isoX, isoY, scale * 0.7f, dayRatio, timeFloat)
+                                    drawLowPoly3DTree(screenX, screenY, scale * 0.85f, dayRatio, timeFloat)
                                 } else {
-                                    // Make stones slightly smaller
-                                    drawLowPolyRock(isoX, isoY - 2f * scale, scale * 0.7f)
+                                    drawLowPolyRock(screenX, screenY - 2f * scale, scale * 0.85f)
                                 }
                             }
                         }
                     }
-
+                    
+                    // Floating Glass Toggle
+                    Row(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(16.dp)
+                            .clip(RoundedCornerShape(32.dp))
+                            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.65f))
+                            .border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(32.dp))
+                            .padding(4.dp)
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = if (!is3DMode) MaterialTheme.colorScheme.primary else Color.Transparent,
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clickable { 
+                                    is3DMode = false 
+                                    rotationAngle = 0f
+                                    tiltAngle = 0.45f
+                                }
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    Icons.Rounded.AutoAwesome, 
+                                    contentDescription = "Static Grid", 
+                                    modifier = Modifier.size(20.dp),
+                                    tint = if (!is3DMode) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                        Surface(
+                            shape = CircleShape,
+                            color = if (is3DMode) MaterialTheme.colorScheme.primary else Color.Transparent,
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clickable { is3DMode = true }
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    Icons.Rounded.SportsEsports, 
+                                    contentDescription = "Movable Free Camera", 
+                                    modifier = Modifier.size(20.dp),
+                                    tint = if (is3DMode) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+                
+                Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
