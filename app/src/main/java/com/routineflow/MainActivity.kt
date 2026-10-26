@@ -17,6 +17,7 @@ import androidx.compose.animation.shrinkVertically
  import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideInVertically
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
@@ -53,11 +54,16 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
-import androidx.compose.foundation.lazy.LazyListScope
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -1958,6 +1964,7 @@ private fun GardenDayChip(
  */
 @Composable
 private fun GardenScreen(state: TodayUiState, tasks: List<TaskEntity>) {
+    val haptics = LocalHapticFeedback.current
     var is3DMode by remember { mutableStateOf(false) }
     var tiltAngle by remember { mutableFloatStateOf(0.45f) }
     var rotationAngle by remember { mutableFloatStateOf(0f) }
@@ -2059,21 +2066,85 @@ private fun GardenScreen(state: TodayUiState, tasks: List<TaskEntity>) {
                     Canvas(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .graphicsLayer {
-                                // No longer skewing 2D graphics, using actual 3D math
-                            }
-                            .pointerInput(is3DMode, tiltAngle) {
-                                detectDragGestures { change, dragAmount ->
-                                    change.consume()
+                                .pointerInput(is3DMode, rotationAngle, tiltAngle) {
                                     if (is3DMode) {
-                                        // Orbit camera directly (0 to 360)
-                                        rotationAngle = (rotationAngle + dragAmount.x * 0.5f) % 360f
-                                        // Pitch camera (top down vs almost flat)
-                                        tiltAngle = (tiltAngle - dragAmount.y / size.height * 1.5f)
-                                            .coerceIn(0.1f, 1.0f)
+                                        detectDragGestures { change, dragAmount ->
+                                            change.consume()
+                                            rotationAngle = (rotationAngle + dragAmount.x * 0.5f) % 360f
+                                            tiltAngle = (tiltAngle - dragAmount.y / size.height * 1.5f).coerceIn(0.1f, 1.0f)
+                                        }
                                     }
                                 }
-                            }
+                                .pointerInput(is3DMode, rotationAngle, tiltAngle, pastDays) {
+                                    detectTapGestures { tapOffset ->
+                                        val canvasWidth = size.width.toFloat()
+                                        val canvasHeight = size.height.toFloat()
+                                        val tileWidth = canvasWidth / 5f
+                                        var closestIndex = -1
+                                        var minDistanceSq = Float.MAX_VALUE
+
+                                        if (is3DMode) {
+                                            val cameraYaw = Math.toRadians((rotationAngle + 45f).toDouble())
+                                            val pitchDeg = (tiltAngle * 90f).coerceIn(20f, 85f)
+                                            val cameraPitch = Math.toRadians(pitchDeg.toDouble())
+                                            val sinYaw = kotlin.math.sin(cameraYaw).toFloat()
+                                            val cosYaw = kotlin.math.cos(cameraYaw).toFloat()
+                                            val sinPitch = kotlin.math.sin(cameraPitch).toFloat()
+                                            val cosPitch = kotlin.math.cos(cameraPitch).toFloat()
+                                            val centerX = canvasWidth / 2f
+                                            val centerY = canvasHeight / 2f + 40f
+                                            val globalScale = 0.85f 
+                                            val localW = tileWidth * globalScale
+
+                                            pastDays.forEachIndexed { index, _ ->
+                                                val row = index / 7
+                                                val col = index % 7
+                                                val lx = (col - 3f) * localW
+                                                val lz = (row - 1.5f) * localW
+                                                val rx = lx * cosYaw - lz * sinYaw
+                                                val rz = lx * sinYaw + lz * cosYaw
+                                                val ry = 0f * cosPitch - rz * sinPitch
+                                                val screenX = centerX + rx
+                                                val screenY = centerY - ry
+
+                                                val dx = tapOffset.x - screenX
+                                                val dy = tapOffset.y - screenY
+                                                val distSq = dx * dx + dy * dy
+                                                if (distSq < minDistanceSq) {
+                                                    minDistanceSq = distSq
+                                                    closestIndex = index
+                                                }
+                                            }
+                                        } else {
+                                            val startX = canvasWidth / 2f
+                                            val startY = canvasHeight / 2f + 20.dp.toPx()
+                                            val staticScale = 0.95f
+                                            val tileHeight = tileWidth * 0.5f
+
+                                            pastDays.forEachIndexed { index, _ ->
+                                                val row = index / 7
+                                                val col = index % 7
+                                                val centeredColOffset = col - 3f
+                                                val centeredRowOffset = row - 1.5f
+                                                val isoX = startX + (centeredColOffset - centeredRowOffset) * (tileWidth * staticScale * 0.48f)
+                                                val isoY = startY + (centeredColOffset + centeredRowOffset) * (tileHeight * staticScale * 0.42f)
+
+                                                val dx = tapOffset.x - isoX
+                                                val dy = tapOffset.y - isoY
+                                                val distSq = dx * dx + dy * dy
+                                                if (distSq < minDistanceSq) {
+                                                    minDistanceSq = distSq
+                                                    closestIndex = index
+                                                }
+                                            }
+                                        }
+
+                                        if (closestIndex in pastDays.indices) {
+                                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                            selectedDayIndex = closestIndex
+                                        }
+                                    }
+                                }
                         ) {
                             val tileWidth = size.width / 5f
                             val tileHeight = tileWidth * 0.5f
@@ -2188,6 +2259,40 @@ private fun GardenScreen(state: TodayUiState, tasks: List<TaskEntity>) {
                         }
                     }
                     
+                    // Floating Selected Date Badge on top-left of Canvas
+                    val currentSelectedDate = pastDays.getOrNull(selectedDayIndex) ?: today
+                    val isSelectedToday = currentSelectedDate == today
+                    
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)),
+                        shadowElevation = 6.dp,
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .padding(14.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                Icons.Rounded.Event,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                text = currentSelectedDate.format(DateTimeFormatter.ofPattern("EEEE, MMM d", Locale.getDefault())) +
+                                       (if (isSelectedToday) " (Today)" else ""),
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+
                     // Floating Glass Toggle
                     Row(
                         modifier = Modifier
@@ -2237,23 +2342,63 @@ private fun GardenScreen(state: TodayUiState, tasks: List<TaskEntity>) {
                     }
                 }
                 
-                Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    val dayListState = rememberLazyListState()
+                    val coroutineScope = rememberCoroutineScope()
+
+                    // Automatically scroll to Today on launch
+                    LaunchedEffect(Unit) {
+                        dayListState.scrollToItem(pastDays.lastIndex)
+                    }
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        pastDays.takeLast(7).forEachIndexed { index, day ->
-                            val actualIndex = pastDays.lastIndex - 6 + index
+                        Text(
+                            text = "Garden Timeline (28 Days)",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        if (selectedDayIndex != pastDays.lastIndex) {
+                            TextButton(
+                                onClick = {
+                                    selectedDayIndex = pastDays.lastIndex
+                                    coroutineScope.launch {
+                                        dayListState.animateScrollToItem(pastDays.lastIndex)
+                                    }
+                                },
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    "Jump to Today",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+
+                    LazyRow(
+                        state = dayListState,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        contentPadding = PaddingValues(horizontal = 2.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        itemsIndexed(pastDays) { index, day ->
                             val dayRatio = treeRatio(state.taskActivity[day] ?: 0, tasks.size)
                             val waterCollected = (state.taskActivity[day] ?: 0) * 25
                             GardenDayChip(
                                 day = day,
                                 isToday = day == today,
-                                isSelected = actualIndex == selectedDayIndex,
+                                isSelected = index == selectedDayIndex,
                                 dayRatio = dayRatio,
                                 waterCollected = waterCollected,
-                                onClick = { selectedDayIndex = actualIndex },
-                                modifier = Modifier.weight(1f)
+                                onClick = { selectedDayIndex = index },
+                                modifier = Modifier.width(58.dp)
                             )
                         }
                     }
