@@ -429,9 +429,8 @@ private fun RoutineFlowApp(
             val title = when (selectedTab) {
                 0 -> greeting
                 1 -> "Planner"
-                2 -> "Garden"
-                3 -> "Progress"
-                4 -> "Focus"
+                2 -> "Growth"
+                3 -> "Focus"
                 else -> "Settings"
             }
 
@@ -442,9 +441,8 @@ private fun RoutineFlowApp(
                     "Today is $date • $remainingTasks task${if (remainingTasks != 1) "s" else ""} left"
                 }
                 1 -> "Tasks & smart schedule"
-                2 -> "Grow your daily tree"
-                3 -> "Track your journey"
-                4 -> "Deep work sessions"
+                2 -> "3D world, XP & streak stats"
+                3 -> "Deep work sessions"
                 else -> "App preferences"
             }
 
@@ -690,11 +688,9 @@ private fun RoutineFlowApp(
                                 } else {
                                     when(tab) {
                                         0 -> Icons.Rounded.Today
-                                        1 -> Icons.Rounded.Checklist
-                                        2 -> Icons.Rounded.Event
-                                        3 -> Icons.Rounded.LocalFlorist
-                                        4 -> Icons.Rounded.Insights
-                                        5 -> Icons.Rounded.SelfImprovement
+                                        1 -> Icons.Rounded.Event
+                                        2 -> Icons.Rounded.LocalFlorist
+                                        3 -> Icons.Rounded.SelfImprovement
                                         else -> Icons.Rounded.Settings
                                     }
                                 },
@@ -911,7 +907,7 @@ private fun RoutineFlowApp(
                         onOpenTask = { openAddTaskWithWater() },
                         onStartFocusOnTask = { task ->
                             activeFocusTask = task
-                            selectedTab = 4
+                            selectedTab = 3
                         }
                     )
                     1 -> PlannerScreen(
@@ -920,12 +916,11 @@ private fun RoutineFlowApp(
                         onOpenTask = { openAddTaskWithWater() },
                         onStartFocusOnTask = { task ->
                             activeFocusTask = task
-                            selectedTab = 4
+                            selectedTab = 3
                         }
                     )
-                    2 -> GardenScreen(state, tasks)
-                    3 -> ProgressScreen(state)
-                    4 -> FocusScreen(
+                    2 -> GrowthScreen(state, tasks)
+                    3 -> FocusScreen(
                         tasks = tasks,
                         activeFocusTask = activeFocusTask,
                         onClearFocusTask = { activeFocusTask = null }
@@ -1225,12 +1220,11 @@ private fun RoutineFlowDockClearPdf(
     onTabSelected: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val labels = listOf("Today", "Planner", "Garden", "Progress", "Focus")
+    val labels = listOf("Today", "Planner", "Growth", "Focus")
     val icons = listOf(
         Icons.Rounded.Today,
         Icons.Rounded.Event,
         Icons.Rounded.LocalFlorist,
-        Icons.Rounded.Insights,
         Icons.Rounded.SelfImprovement
     )
     val density = LocalDensity.current
@@ -1999,12 +1993,108 @@ private fun GardenDayChip(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun GrowthScreen(state: TodayUiState, tasks: List<TaskEntity>) {
+    var subViewMode by remember { mutableIntStateOf(0) } // 0 = 3D World, 1 = Stats & XP
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        Surface(
+            color = MaterialTheme.colorScheme.surfaceContainer,
+            shape = RoundedCornerShape(16.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 6.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(4.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Surface(
+                    onClick = { subViewMode = 0 },
+                    shape = RoundedCornerShape(12.dp),
+                    color = if (subViewMode == 0) MaterialTheme.colorScheme.primary else Color.Transparent,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Row(
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(vertical = 10.dp)
+                    ) {
+                        Icon(
+                            Icons.Rounded.LocalFlorist,
+                            contentDescription = null,
+                            tint = if (subViewMode == 0) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            "3D World",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = if (subViewMode == 0) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                Surface(
+                    onClick = { subViewMode = 1 },
+                    shape = RoundedCornerShape(12.dp),
+                    color = if (subViewMode == 1) MaterialTheme.colorScheme.primary else Color.Transparent,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Row(
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(vertical = 10.dp)
+                    ) {
+                        Icon(
+                            Icons.Rounded.Insights,
+                            contentDescription = null,
+                            tint = if (subViewMode == 1) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            "Stats & XP",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = if (subViewMode == 1) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        }
+
+        AnimatedContent(
+            targetState = subViewMode,
+            transitionSpec = {
+                if (targetState > initialState) {
+                    (slideInHorizontally { it / 3 } + fadeIn()) togetherWith (slideOutHorizontally { -it / 3 } + fadeOut())
+                } else {
+                    (slideInHorizontally { -it / 3 } + fadeIn()) togetherWith (slideOutHorizontally { it / 3 } + fadeOut())
+                }
+            },
+            label = "growth_subview",
+            modifier = Modifier.fillMaxSize()
+        ) { view ->
+            if (view == 0) {
+                GardenWorldView(state, tasks)
+            } else {
+                ProgressStatsView(state)
+            }
+        }
+    }
+}
+
 /**
  * Dedicated Interactive Gaming Section (Sacred Tree Garden).
  * Features Low-Poly 3D Trees drawn directly on Canvas tiles for 2.5D Isometric & 3D Perspective!
  */
 @Composable
-private fun GardenScreen(state: TodayUiState, tasks: List<TaskEntity>) {
+private fun GardenWorldView(state: TodayUiState, tasks: List<TaskEntity>) {
     val haptics = LocalHapticFeedback.current
     var is3DMode by remember { mutableStateOf(false) }
     var tiltAngle by remember { mutableFloatStateOf(0.45f) }
@@ -4250,7 +4340,7 @@ private fun PlannerBlockCard(
 }
 
 @Composable
-private fun ProgressScreen(state: TodayUiState) {
+private fun ProgressStatsView(state: TodayUiState) {
     val level = (state.xp / 100) + 1
     val levelProgress = (state.xp % 100) / 100f
     val totalCheckIns = state.activity.values.sum()
