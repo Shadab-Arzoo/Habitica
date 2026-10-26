@@ -196,15 +196,16 @@ class MainActivity : FragmentActivity() {
 @Composable
 private fun RoutineFlowRoot() {
     val systemDarkMode = isSystemInDarkTheme()
-    var darkMode by remember { mutableStateOf(systemDarkMode) }
     val onboardingViewModel: OnboardingViewModel = hiltViewModel()
     val onboarding by onboardingViewModel.state.collectAsStateWithLifecycle()
     val reducedMotion by onboardingViewModel.reducedMotion.collectAsStateWithLifecycle()
+    val savedDarkTheme by onboardingViewModel.darkTheme.collectAsStateWithLifecycle()
     val appLockEnabled by onboardingViewModel.appLockEnabled.collectAsStateWithLifecycle()
     
+    val isDarkMode = savedDarkTheme ?: systemDarkMode
     var isAuthenticated by remember { mutableStateOf(false) }
 
-    RoutineFlowTheme(darkTheme = darkMode) {
+    RoutineFlowTheme(darkTheme = isDarkMode) {
         Surface(
             modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.background
@@ -215,8 +216,8 @@ private fun RoutineFlowRoot() {
                 )
             } else if (onboarding.completed) {
                 RoutineFlowApp(
-                    darkMode = darkMode,
-                    onThemeToggle = { darkMode = !darkMode },
+                    darkMode = isDarkMode,
+                    onThemeToggle = { onboardingViewModel.setDarkTheme(!isDarkMode) },
                     reducedMotion = reducedMotion,
                     onReducedMotionChange = onboardingViewModel::setReducedMotion,
                     appLockEnabled = appLockEnabled,
@@ -555,119 +556,114 @@ private fun RoutineFlowApp(
                             },
                         contentAlignment = Alignment.Center
                     ) {
-                        // Advanced Radial Orbit Energy Lines (Like Dock)
-                        val triggerOrbit = remember { mutableIntStateOf(0) }
-                        val orbitProgress = remember { androidx.compose.animation.core.Animatable(0f) }
+                        // Progressive Unlocking Radial Orbit Ring (Strict 5-Dot Clean Design)
+                        var unlockedCount by remember { mutableIntStateOf(0) }
+                        val arcRevealAnim = remember { androidx.compose.animation.core.Animatable(0f) }
+                        val pulseAnim = remember { androidx.compose.animation.core.Animatable(0f) }
                         
                         androidx.compose.runtime.LaunchedEffect(iconClickPulse) {
                             if (iconClickPulse >= 2f) {
-                                triggerOrbit.intValue++
-                                orbitProgress.snapTo(0f)
-                                orbitProgress.animateTo(
-                                    1f,
-                                    animationSpec = androidx.compose.animation.core.tween(
-                                        durationMillis = 600,
-                                        easing = androidx.compose.animation.core.FastOutSlowInEasing
+                                if (unlockedCount < 5) {
+                                    unlockedCount++
+                                    arcRevealAnim.snapTo(0f)
+                                    arcRevealAnim.animateTo(
+                                        1f,
+                                        animationSpec = spring(
+                                            dampingRatio = 0.7f,
+                                            stiffness = 380f
+                                        )
                                     )
-                                )
-                                orbitProgress.snapTo(0f)
+                                } else {
+                                    // Ring fully complete (5 dots) -> subtle pulse / spark flare on the 5 dots
+                                    pulseAnim.snapTo(0f)
+                                    pulseAnim.animateTo(
+                                        1f,
+                                        animationSpec = androidx.compose.animation.core.tween(
+                                            durationMillis = 500,
+                                            easing = androidx.compose.animation.core.FastOutSlowInEasing
+                                        )
+                                    )
+                                    pulseAnim.snapTo(0f)
+                                }
                             }
                         }
 
-                        if (orbitProgress.value > 0f) {
-                            Canvas(modifier = Modifier.fillMaxSize()) {
-                                val p = orbitProgress.value
-                                val center = Offset(size.width / 2f, size.height / 2f)
-                                val radius = size.minDimension / 2f * 0.85f
-                                
-                                val streams = listOf(
-                                    Pair(Color(0xFF38BDF8), 0f),       // Sky Cyan
-                                    Pair(Color(0xFF4ADE80), 72f),      // Emerald Green
-                                    Pair(Color(0xFF818CF8), 144f),     // Indigo
-                                    Pair(Color(0xFFFBBF24), 216f),     // Amber
-                                    Pair(Color(0xFFF472B6), 288f)      // Neon Pink
-                                )
-                                
-                                // To limit chaos, we only draw active streams based on click combo
-                                val activeStreams = streams.take(
-                                    (triggerOrbit.intValue.coerceAtLeast(1) * 2 - 1).coerceAtMost(5)
-                                )
-                                
-                                activeStreams.forEach { (color, startAngleOffset) ->
-                                    // Each stream draws an arc tracing around the circle
-                                    // The arc length shrinks as it completes its orbit
-                                    val currentAngle = startAngleOffset + (p * 360f * 1.5f) // Spins 1.5 times
-                                    val sweep = 65f * (1f - p) // Prevent overlap! 65 degrees max
-                                    
-                                    drawArc(
-                                        brush = Brush.sweepGradient(
-                                            colors = listOf(Color.Transparent, color, Color.White),
-                                            center = center
-                                        ),
-                                        startAngle = currentAngle,
-                                        sweepAngle = sweep,
-                                        useCenter = false,
-                                        topLeft = Offset(center.x - radius, center.y - radius),
-                                        size = Size(radius * 2, radius * 2),
-                                        style = Stroke(width = 3.5.dp.toPx(), cap = StrokeCap.Round)
-                                    )
+                        Canvas(modifier = Modifier.fillMaxSize()) {
+                            val center = Offset(size.width / 2f, size.height / 2f)
+                            val radius = size.minDimension / 2f * 0.88f
+                            
+                            // Subtle background track ring
+                            drawCircle(
+                                color = Color.White.copy(alpha = 0.12f),
+                                radius = radius,
+                                center = center,
+                                style = Stroke(width = 1.5.dp.toPx())
+                            )
 
-                                    // Render glowing particle at the head of the stream
-                                    if (p < 0.95f) {
-                                        val headAngleRad = Math.toRadians((currentAngle + sweep).toDouble())
+                            val streams = listOf(
+                                Pair(Color(0xFF38BDF8), 0f),       // 1st click: Sky Cyan
+                                Pair(Color(0xFF4ADE80), 72f),      // 2nd click: Emerald Green
+                                Pair(Color(0xFF818CF8), 144f),     // 3rd click: Indigo
+                                Pair(Color(0xFFFBBF24), 216f),     // 4th click: Amber
+                                Pair(Color(0xFFF472B6), 288f)      // 5th click: Neon Pink
+                            )
+                            
+                            if (unlockedCount > 0) {
+                                val activeStreams = streams.take(unlockedCount)
+                                val pPulse = pulseAnim.value
+                                
+                                activeStreams.forEachIndexed { index, (color, startAngleOffset) ->
+                                    val targetSweep = 50f
+                                    val currentSweep = if (index == unlockedCount - 1 && unlockedCount < 5) {
+                                        targetSweep * arcRevealAnim.value
+                                    } else {
+                                        targetSweep
+                                    }
+                                    
+                                    if (currentSweep > 0.5f) {
+                                        // Clean colored arc segment
+                                        drawArc(
+                                            color = color,
+                                            startAngle = startAngleOffset,
+                                            sweepAngle = currentSweep,
+                                            useCenter = false,
+                                            topLeft = Offset(center.x - radius, center.y - radius),
+                                            size = Size(radius * 2, radius * 2),
+                                            style = Stroke(width = 3.5.dp.toPx(), cap = StrokeCap.Round)
+                                        )
+
+                                        // Exactly 1 glowing node dot at the head of this arc (Total 5 dots at the end!)
+                                        val headAngleRad = Math.toRadians((startAngleOffset + currentSweep).toDouble())
                                         val px = center.x + kotlin.math.cos(headAngleRad).toFloat() * radius
                                         val py = center.y + kotlin.math.sin(headAngleRad).toFloat() * radius
                                         
-                                        // Ambient particle glow
+                                        // Outer halo dot
+                                        val haloRadius = 4.5.dp.toPx() + (if (pPulse > 0f) (1f - pPulse) * 3.dp.toPx() else 0f)
                                         drawCircle(
-                                            color = color.copy(alpha = 0.7f * (1f - p)),
-                                            radius = 4.5.dp.toPx(),
+                                            color = color.copy(alpha = 0.45f),
+                                            radius = haloRadius,
                                             center = Offset(px, py)
                                         )
-                                        // Intense particle core
+                                        // Pure white inner core dot
                                         drawCircle(
-                                            color = Color.White.copy(alpha = 1f - p),
-                                            radius = 1.5.dp.toPx(),
+                                            color = Color.White,
+                                            radius = 2.0.dp.toPx(),
                                             center = Offset(px, py)
                                         )
-                                        
-                                        // Eject magical sparks outward based on click count intensity!
-                                        val sparkCount = (triggerOrbit.intValue - 1).coerceIn(0, 3)
-                                        for (s in 1..sparkCount) {
-                                            val sparkDist = radius + (p * 20f * s)
-                                            val sparkAngle = headAngleRad + (s * 0.3)
-                                            val sx = center.x + kotlin.math.cos(sparkAngle).toFloat() * sparkDist
-                                            val sy = center.y + kotlin.math.sin(sparkAngle).toFloat() * sparkDist
+
+                                        // On repeat clicks when 5 dots are present: 1 subtle spark per dot radiating outwards
+                                        if (pPulse > 0f) {
+                                            val sparkDist = radius + pPulse * 12.dp.toPx()
+                                            val sx = center.x + kotlin.math.cos(headAngleRad).toFloat() * sparkDist
+                                            val sy = center.y + kotlin.math.sin(headAngleRad).toFloat() * sparkDist
+                                            val sparkAlpha = (1f - pPulse) * 0.8f
+                                            
                                             drawCircle(
-                                                color = color.copy(alpha = (1f - p) * 0.9f),
-                                                radius = 1.2.dp.toPx(),
+                                                color = color.copy(alpha = sparkAlpha),
+                                                radius = 2.0.dp.toPx() * (1f - pPulse * 0.5f),
                                                 center = Offset(sx, sy)
                                             )
                                         }
-                                    }
-                                }
-                                
-                                // End burst explosion if the user clicked many times!
-                                if (p > 0.8f && triggerOrbit.intValue >= 3) {
-                                    val burstP = ((p - 0.8f) / 0.2f).coerceIn(0f, 1f)
-                                    val burstAlpha = 1f - burstP
-                                    for (i in 0 until 12) {
-                                        val angle = i * (Math.PI / 6.0)
-                                        val dist = radius + burstP * 30.dp.toPx()
-                                        val bx = center.x + kotlin.math.cos(angle).toFloat() * dist
-                                        val by = center.y + kotlin.math.sin(angle).toFloat() * dist
-                                        val color = streams[i % 5].first
-                                        
-                                        drawCircle(
-                                            color = color.copy(alpha = burstAlpha * 0.8f),
-                                            radius = 3.dp.toPx() * burstAlpha,
-                                            center = Offset(bx, by)
-                                        )
-                                        drawCircle(
-                                            color = Color.White.copy(alpha = burstAlpha),
-                                            radius = 1.dp.toPx() * burstAlpha,
-                                            center = Offset(bx, by)
-                                        )
                                     }
                                 }
                             }
@@ -2036,8 +2032,8 @@ private fun GardenScreen(state: TodayUiState, tasks: List<TaskEntity>) {
                                     }
                                 }
                             } else {
-                                val startX = size.width / 2f + (tileWidth * 0.25f) // Shift right to center perfectly
-                                val startY = 120.dp.toPx() // Shift down to center perfectly
+                                val startX = size.width / 2f
+                                val startY = size.height / 2f + 20.dp.toPx()
                                 val staticScale = 0.95f // Size up to fill the card
                                 
                                 pastDays.forEachIndexed { index, dayDate ->
@@ -4176,8 +4172,8 @@ private fun AddHabitDialog(
             entryProgress.animateTo(
                 1f,
                 animationSpec = spring(
-                    dampingRatio = 0.54f,
-                    stiffness = 220f
+                    dampingRatio = 0.82f,
+                    stiffness = 500f
                 )
             )
         }
@@ -4198,53 +4194,12 @@ private fun AddHabitDialog(
                     .fillMaxWidth()
                     .padding(bottom = 92.dp)
                     .graphicsLayer {
-                        val settledProgress = entryProgress.value
-                        val stretchY = androidx.compose.ui.util.lerp(0.88f, 1f, ((settledProgress - 0.05f) / 0.95f).coerceIn(0f, 1f))
-                        val stretchX = androidx.compose.ui.util.lerp(0.92f, 1f, settledProgress)
-                        scaleX = stretchX
-                        scaleY = stretchY
-                        translationY = androidx.compose.ui.util.lerp(54f, 0f, settledProgress)
-                        alpha = androidx.compose.ui.util.lerp(0.15f, 1f, settledProgress)
-                        transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.85f, 1f)
-                    }
-                    .drawWithContent {
-                        val revealTop = size.height * (1f - entryProgress.value)
-                        clipRect(top = revealTop) {
-                            this@drawWithContent.drawContent()
-                        }
-                        if (!reducedMotion && entryProgress.value > 0f && entryProgress.value < 1.05f) {
-                            val edgeAlpha = (1.05f - entryProgress.value).coerceIn(0f, 1f)
-                            if (edgeAlpha > 0f) {
-                                val wavePath = Path().apply {
-                                    val waveHeight = 12f * (1f - entryProgress.value.coerceIn(0f, 1f))
-                                    val topY = revealTop
-                                    moveTo(0f, topY)
-                                    val steps = 16
-                                    val stepWidth = size.width / steps
-                                    for (i in 0..steps) {
-                                        val x = i * stepWidth
-                                        val y = topY + kotlin.math.sin(i * 0.55 + entryProgress.value * 10.0).toFloat() * waveHeight
-                                        lineTo(x, y)
-                                    }
-                                    lineTo(size.width, size.height)
-                                    lineTo(0f, size.height)
-                                    close()
-                                }
-                                drawPath(
-                                    path = wavePath,
-                                    brush = Brush.verticalGradient(
-                                        colors = listOf(
-                                            revealAccent.copy(alpha = 0.55f * edgeAlpha),
-                                            Color.White.copy(alpha = 0.85f * edgeAlpha),
-                                            revealAccent.copy(alpha = 0.15f * edgeAlpha),
-                                            Color.Transparent
-                                        ),
-                                        startY = revealTop - 12f,
-                                        endY = revealTop + 24f
-                                    )
-                                )
-                            }
-                        }
+                        val p = entryProgress.value
+                        alpha = p.coerceIn(0f, 1f)
+                        translationY = androidx.compose.ui.util.lerp(32f, 0f, p)
+                        val s = androidx.compose.ui.util.lerp(0.95f, 1f, p)
+                        scaleX = s
+                        scaleY = s
                     }
                     .clip(RoundedCornerShape(LiquidGlassTokens.cardRadius))
                     .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.75f))
@@ -4433,8 +4388,8 @@ private fun AddTaskDialog(
             entryProgress.animateTo(
                 1f,
                 animationSpec = spring(
-                    dampingRatio = 0.54f,
-                    stiffness = 220f
+                    dampingRatio = 0.82f,
+                    stiffness = 500f
                 )
             )
         }
@@ -4455,53 +4410,12 @@ private fun AddTaskDialog(
                     .fillMaxWidth()
                     .padding(bottom = 92.dp)
                     .graphicsLayer {
-                        val settledProgress = entryProgress.value
-                        val stretchY = androidx.compose.ui.util.lerp(0.88f, 1f, ((settledProgress - 0.05f) / 0.95f).coerceIn(0f, 1f))
-                        val stretchX = androidx.compose.ui.util.lerp(0.92f, 1f, settledProgress)
-                        scaleX = stretchX
-                        scaleY = stretchY
-                        translationY = androidx.compose.ui.util.lerp(54f, 0f, settledProgress)
-                        alpha = androidx.compose.ui.util.lerp(0.15f, 1f, settledProgress)
-                        transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.85f, 1f)
-                    }
-                    .drawWithContent {
-                        val revealTop = size.height * (1f - entryProgress.value)
-                        clipRect(top = revealTop) {
-                            this@drawWithContent.drawContent()
-                        }
-                        if (!reducedMotion && entryProgress.value > 0f && entryProgress.value < 1.05f) {
-                            val edgeAlpha = (1.05f - entryProgress.value).coerceIn(0f, 1f)
-                            if (edgeAlpha > 0f) {
-                                val wavePath = Path().apply {
-                                    val waveHeight = 12f * (1f - entryProgress.value.coerceIn(0f, 1f))
-                                    val topY = revealTop
-                                    moveTo(0f, topY)
-                                    val steps = 16
-                                    val stepWidth = size.width / steps
-                                    for (i in 0..steps) {
-                                        val x = i * stepWidth
-                                        val y = topY + kotlin.math.sin(i * 0.55 + entryProgress.value * 10.0).toFloat() * waveHeight
-                                        lineTo(x, y)
-                                    }
-                                    lineTo(size.width, size.height)
-                                    lineTo(0f, size.height)
-                                    close()
-                                }
-                                drawPath(
-                                    path = wavePath,
-                                    brush = Brush.verticalGradient(
-                                        colors = listOf(
-                                            revealAccent.copy(alpha = 0.55f * edgeAlpha),
-                                            Color.White.copy(alpha = 0.85f * edgeAlpha),
-                                            revealAccent.copy(alpha = 0.15f * edgeAlpha),
-                                            Color.Transparent
-                                        ),
-                                        startY = revealTop - 12f,
-                                        endY = revealTop + 24f
-                                    )
-                                )
-                            }
-                        }
+                        val p = entryProgress.value
+                        alpha = p.coerceIn(0f, 1f)
+                        translationY = androidx.compose.ui.util.lerp(32f, 0f, p)
+                        val s = androidx.compose.ui.util.lerp(0.95f, 1f, p)
+                        scaleX = s
+                        scaleY = s
                     }
                     .clip(RoundedCornerShape(LiquidGlassTokens.cardRadius))
                     .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.75f))
@@ -4613,21 +4527,11 @@ private fun Modifier.liquidMenuReveal(
         return graphicsLayer { alpha = 0f }
     }
 
-    val spring = 1f - (
-        kotlin.math.exp((-6.5f * normalized).toDouble()) *
-            kotlin.math.cos((9.0f * normalized).toDouble())
-        ).toFloat()
-    val eased = spring.coerceIn(0f, 1.08f)
-
-    val sloshRotation = kotlin.math.sin(normalized * Math.PI * 2.0).toFloat() * 1.8f * (1f - normalized)
+    val eased = androidx.compose.animation.core.FastOutSlowInEasing.transform(normalized)
 
     return graphicsLayer {
-        alpha = eased.coerceAtMost(1f)
-        translationY = androidx.compose.ui.util.lerp(36f, 0f, eased.coerceIn(0f, 1f))
-        rotationZ = sloshRotation
-        val scale = androidx.compose.ui.util.lerp(0.92f, 1f, eased.coerceIn(0f, 1f))
-        scaleX = scale
-        scaleY = scale
+        alpha = eased
+        translationY = (1f - eased) * 10f
     }
 }
 
