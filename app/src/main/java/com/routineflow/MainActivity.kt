@@ -2012,9 +2012,9 @@ private fun GardenScreen(state: TodayUiState, tasks: List<TaskEntity>) {
                                     }
                                 }
                             } else {
-                                val startX = size.width / 2f
-                                val startY = 80.dp.toPx()
-                                val staticScale = 0.85f // Match grid size closer to screen edge
+                                val startX = size.width / 2f - (tileWidth * 0.15f) // Nudge left to perfectly center the 7x4 grid visually
+                                val startY = 90.dp.toPx()
+                                val staticScale = 0.95f // Size up to fill the card
                                 
                                 pastDays.forEachIndexed { index, dayDate ->
                                     val row = index / 7
@@ -2022,8 +2022,11 @@ private fun GardenScreen(state: TodayUiState, tasks: List<TaskEntity>) {
                                     val completedTasks = state.taskActivity[dayDate] ?: 0
                                     val dayRatio = treeRatio(completedTasks, tasks.size.coerceAtLeast(1))
 
-                                    val isoX = startX + (col - row) * (tileWidth * staticScale * 0.48f)
-                                    val isoY = startY + (col + row) * (tileHeight * staticScale * 0.42f)
+                                    // Offset the grid slightly so it doesn't skew off-center
+                                    val centeredColOffset = col - 3f
+                                    val centeredRowOffset = row - 1.5f
+                                    val isoX = startX + (centeredColOffset - centeredRowOffset) * (tileWidth * staticScale * 0.48f)
+                                    val isoY = startY + (centeredColOffset + centeredRowOffset) * (tileHeight * staticScale * 0.42f)
 
                                     val isSelected = index == selectedDayIndex
                                     val tileColor = when {
