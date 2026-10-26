@@ -581,16 +581,18 @@ private fun RoutineFlowApp(
                                 val radius = size.minDimension / 2f * 0.85f
                                 
                                 val streams = listOf(
-                                    Pair(Color(0xFF38BDF8), 0f),      // Sky Cyan
-                                    Pair(Color(0xFF818CF8), 120f),    // Indigo
-                                    Pair(Color(0xFFF472B6), 240f)     // Neon Pink
+                                    Pair(Color(0xFF38BDF8), 0f),       // Sky Cyan
+                                    Pair(Color(0xFF4ADE80), 72f),      // Emerald Green
+                                    Pair(Color(0xFF818CF8), 144f),     // Indigo
+                                    Pair(Color(0xFFFBBF24), 216f),     // Amber
+                                    Pair(Color(0xFFF472B6), 288f)      // Neon Pink
                                 )
                                 
                                 streams.forEach { (color, startAngleOffset) ->
                                     // Each stream draws an arc tracing around the circle
                                     // The arc length shrinks as it completes its orbit
                                     val currentAngle = startAngleOffset + (p * 360f * 1.5f) // Spins 1.5 times
-                                    val sweep = 120f * (1f - p) // Tail gets shorter
+                                    val sweep = 72f * (1f - p) // Tail gets shorter
                                     
                                     drawArc(
                                         brush = Brush.sweepGradient(
@@ -602,8 +604,41 @@ private fun RoutineFlowApp(
                                         useCenter = false,
                                         topLeft = Offset(center.x - radius, center.y - radius),
                                         size = Size(radius * 2, radius * 2),
-                                        style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round)
+                                        style = Stroke(width = 4.dp.toPx(), cap = StrokeCap.Round)
                                     )
+
+                                    // Render glowing particle at the head of the stream
+                                    if (p < 0.95f) {
+                                        val headAngleRad = Math.toRadians((currentAngle + sweep).toDouble())
+                                        val px = center.x + kotlin.math.cos(headAngleRad).toFloat() * radius
+                                        val py = center.y + kotlin.math.sin(headAngleRad).toFloat() * radius
+                                        
+                                        // Ambient particle glow
+                                        drawCircle(
+                                            color = color.copy(alpha = 0.6f * (1f - p)),
+                                            radius = 5.dp.toPx(),
+                                            center = Offset(px, py)
+                                        )
+                                        // Intense particle core
+                                        drawCircle(
+                                            color = Color.White.copy(alpha = 1f - p),
+                                            radius = 2.dp.toPx(),
+                                            center = Offset(px, py)
+                                        )
+                                        
+                                        // Eject a few stray magical sparks outward
+                                        for (s in 1..2) {
+                                            val sparkDist = radius + (p * 15f * s)
+                                            val sparkAngle = headAngleRad + (s * 0.2)
+                                            val sx = center.x + kotlin.math.cos(sparkAngle).toFloat() * sparkDist
+                                            val sy = center.y + kotlin.math.sin(sparkAngle).toFloat() * sparkDist
+                                            drawCircle(
+                                                color = color.copy(alpha = (1f - p) * 0.8f),
+                                                radius = 1.dp.toPx(),
+                                                center = Offset(sx, sy)
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -1914,7 +1949,8 @@ private fun GardenScreen(state: TodayUiState, tasks: List<TaskEntity>) {
                                 val centerY = size.height / 2f + 40f
                                 
                                 // Scale down slightly to fit the grid
-                                val globalScale = 0.65f
+                                // The new baseline scale to match the static grid's apparent size
+                                val globalScale = 0.85f 
                                 val localW = tileWidth * globalScale
 
                                 // Convert days into 3D sorted array
@@ -1972,6 +2008,7 @@ private fun GardenScreen(state: TodayUiState, tasks: List<TaskEntity>) {
                             } else {
                                 val startX = size.width / 2f
                                 val startY = 80.dp.toPx()
+                                val staticScale = 0.85f // Match grid size closer to screen edge
                                 
                                 pastDays.forEachIndexed { index, dayDate ->
                                     val row = index / 7
@@ -1979,8 +2016,8 @@ private fun GardenScreen(state: TodayUiState, tasks: List<TaskEntity>) {
                                     val completedTasks = state.taskActivity[dayDate] ?: 0
                                     val dayRatio = treeRatio(completedTasks, tasks.size.coerceAtLeast(1))
 
-                                    val isoX = startX + (col - row) * (tileWidth * 0.48f)
-                                    val isoY = startY + (col + row) * (tileHeight * 0.42f)
+                                    val isoX = startX + (col - row) * (tileWidth * staticScale * 0.48f)
+                                    val isoY = startY + (col + row) * (tileHeight * staticScale * 0.42f)
 
                                     val isSelected = index == selectedDayIndex
                                     val tileColor = when {
@@ -1990,13 +2027,13 @@ private fun GardenScreen(state: TodayUiState, tasks: List<TaskEntity>) {
                                     }
 
                                     // 1. Draw 2.5D Isometric Land Tile
-                                    drawIsoTile(isoX, isoY, tileWidth, tileHeight, tileColor, isSelected)
+                                    drawIsoTile(isoX, isoY, tileWidth * staticScale, tileHeight * staticScale, tileColor, isSelected)
 
                                     // 2. Draw Low-Poly Voxel 2.5D Tree or Stone
                                     if (dayRatio > 0f) {
-                                        drawLowPoly3DTree(isoX, isoY, 0.7f, dayRatio, timeFloat)
+                                        drawLowPoly3DTree(isoX, isoY, staticScale * 0.9f, dayRatio, timeFloat)
                                     } else {
-                                        drawLowPolyRock(isoX, isoY - 2f * 0.7f, 0.7f)
+                                        drawLowPolyRock(isoX, isoY - 2f * staticScale, staticScale * 0.9f)
                                     }
                                 }
                             }
