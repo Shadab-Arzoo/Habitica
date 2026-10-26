@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- App & Widget Dark Mode Colors -->
+    <color name="widget_bg_start">#162035</color>
+    <color name="widget_bg_end">#283550</color>
+    <color name="widget_stroke">#35FFFFFF</color>
+    <color name="widget_text_title">#FFFFFF</color>
+    <color name="widget_text_subtitle">#94A3B8</color>
+    <color name="widget_accent_primary">#38BDF8</color>
+    <color name="widget_accent_secondary">#818CF8</color>
+    <color name="widget_divider">#30FFFFFF</color>
+    <color name="widget_progress_bg">#1E293B</color>
+</resources>

@@ -21,6 +21,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.foundation.background
@@ -52,6 +53,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import kotlin.math.roundToInt
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -415,7 +419,7 @@ private fun RoutineFlowApp(
                 0 -> greeting
                 1 -> "Tasks"
                 2 -> "Planner"
-                3 -> "Gaming"
+                3 -> "Garden"
                 4 -> "Progress"
                 5 -> "Focus"
                 else -> "Settings"
@@ -429,7 +433,7 @@ private fun RoutineFlowApp(
                 }
                 1 -> "Your to-dos and priorities"
                 2 -> "Schedule your day"
-                3 -> "Level up your life"
+                3 -> "Grow your daily tree"
                 4 -> "Track your journey"
                 5 -> "Deep work sessions"
                 else -> "App preferences"
@@ -714,7 +718,7 @@ private fun RoutineFlowApp(
                                     0 -> Icons.Rounded.Today
                                     1 -> Icons.Rounded.Checklist
                                     2 -> Icons.Rounded.Event
-                                    3 -> Icons.Rounded.SportsEsports
+                                    3 -> Icons.Rounded.LocalFlorist
                                     4 -> Icons.Rounded.Insights
                                     5 -> Icons.Rounded.SelfImprovement
                                     else -> Icons.Rounded.Settings
@@ -1173,12 +1177,12 @@ private fun RoutineFlowDockClearPdf(
     onTabSelected: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val labels = listOf("Today", "Tasks", "Planner", "Gaming", "Progress", "Focus", "Settings")
+    val labels = listOf("Today", "Tasks", "Planner", "Garden", "Progress", "Focus", "Settings")
     val icons = listOf(
         Icons.Rounded.Today,
         Icons.Rounded.Checklist,
         Icons.Rounded.Event,
-        Icons.Rounded.SportsEsports,
+        Icons.Rounded.LocalFlorist,
         Icons.Rounded.Insights,
         Icons.Rounded.SelfImprovement,
         Icons.Rounded.Settings
@@ -1868,6 +1872,86 @@ private fun DailyTreeCard(state: TodayUiState, tasks: List<TaskEntity>) {
     }
 }
 
+@Composable
+private fun GardenDayChip(
+    day: LocalDate,
+    isToday: Boolean,
+    isSelected: Boolean,
+    dayRatio: Float,
+    waterCollected: Int,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val dayOfWeek = if (isToday) "Today" else day.format(DateTimeFormatter.ofPattern("EEE", Locale.getDefault()))
+    val dayNum = day.dayOfMonth.toString()
+
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(16.dp),
+        color = when {
+            isSelected -> MaterialTheme.colorScheme.primary
+            isToday -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
+            else -> MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.5f)
+        },
+        border = BorderStroke(
+            width = if (isSelected || isToday) 1.5.dp else 0.5.dp,
+            color = when {
+                isSelected -> Color.White.copy(alpha = 0.6f)
+                isToday -> MaterialTheme.colorScheme.primary
+                else -> Color.White.copy(alpha = 0.12f)
+            }
+        ),
+        modifier = modifier
+    ) {
+        Column(
+            modifier = Modifier.padding(vertical = 8.dp, horizontal = 2.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            Text(
+                text = dayOfWeek,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = if (isToday || isSelected) FontWeight.Bold else FontWeight.Medium,
+                color = when {
+                    isSelected -> MaterialTheme.colorScheme.onPrimary
+                    isToday -> MaterialTheme.colorScheme.primary
+                    else -> MaterialTheme.colorScheme.onSurfaceVariant
+                },
+                maxLines = 1
+            )
+
+            Text(
+                text = dayNum,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.ExtraBold,
+                color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+            )
+
+            if (dayRatio > 0f) {
+                Box(
+                    modifier = Modifier
+                        .size(20.dp)
+                        .clip(CircleShape)
+                        .background(
+                            if (isSelected) Color.White.copy(alpha = 0.25f) 
+                            else Color(0xFF4ADE80).copy(alpha = 0.25f)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Rounded.LocalFlorist,
+                        contentDescription = "Growth",
+                        tint = if (isSelected) Color.White else Color(0xFF4ADE80),
+                        modifier = Modifier.size(13.dp)
+                    )
+                }
+            } else {
+                Spacer(modifier = Modifier.height(20.dp))
+            }
+        }
+    }
+}
+
 /**
  * Dedicated Interactive Gaming Section (Sacred Tree Garden).
  * Features Low-Poly 3D Trees drawn directly on Canvas tiles for 2.5D Isometric & 3D Perspective!
@@ -1898,45 +1982,47 @@ private fun GardenScreen(state: TodayUiState, tasks: List<TaskEntity>) {
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column(modifier = Modifier.weight(1f)) {
+                        Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
                             Text(
                                 "Daily Growth Garden",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                "Every completed task becomes water for today's tree.",
+                                "Complete tasks to collect water and grow today's tree.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                    Column(
-                        horizontalAlignment = Alignment.End,
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Text(
-                            "${pastDays.count { (state.taskActivity[it] ?: 0) > 0 }}",
-                            style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        Text(
-                            "days with",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Rounded.LocalFlorist, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
-                            Spacer(modifier = Modifier.width(4.dp))
+
+                        val growthDays = pastDays.count { (state.taskActivity[it] ?: 0) > 0 }
+                        Column(
+                            horizontalAlignment = Alignment.End,
+                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    "$growthDays",
+                                    style = MaterialTheme.typography.headlineSmall,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(Modifier.width(4.dp))
+                                Icon(
+                                    Icons.Rounded.LocalFlorist,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
                             Text(
-                                "growth",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.SemiBold
+                                text = if (growthDays == 1) "day of growth" else "days of growth",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontWeight = FontWeight.Medium
                             )
                         }
                     }
-                }
 
                     // The View Mode Switcher has been replaced by floating icon toggles.
                 }
@@ -2159,24 +2245,15 @@ private fun GardenScreen(state: TodayUiState, tasks: List<TaskEntity>) {
                         pastDays.takeLast(7).forEachIndexed { index, day ->
                             val actualIndex = pastDays.lastIndex - 6 + index
                             val dayRatio = treeRatio(state.taskActivity[day] ?: 0, tasks.size)
-                            FilterChip(
-                                selected = actualIndex == selectedDayIndex,
+                            val waterCollected = (state.taskActivity[day] ?: 0) * 25
+                            GardenDayChip(
+                                day = day,
+                                isToday = day == today,
+                                isSelected = actualIndex == selectedDayIndex,
+                                dayRatio = dayRatio,
+                                waterCollected = waterCollected,
                                 onClick = { selectedDayIndex = actualIndex },
-                                label = {
-                                    Text(
-                                        day.dayOfMonth.toString(),
-                                        style = MaterialTheme.typography.labelSmall
-                                    )
-                                },
-                                leadingIcon = if (dayRatio > 0f) {
-                                    {
-                                        Icon(
-                                            Icons.Rounded.LocalFlorist,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(14.dp)
-                                        )
-                                    }
-                                } else null
+                                modifier = Modifier.weight(1f)
                             )
                         }
                     }
@@ -2191,7 +2268,9 @@ private fun GardenScreen(state: TodayUiState, tasks: List<TaskEntity>) {
                         shape = RoundedCornerShape(16.dp)
                     ) {
                         Column(
-                            modifier = Modifier.padding(16.dp),
+                            modifier = Modifier
+                                .padding(16.dp)
+                                .padding(end = 36.dp),
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             Row(
@@ -2207,11 +2286,11 @@ private fun GardenScreen(state: TodayUiState, tasks: List<TaskEntity>) {
                                     )
                                     Text(
                                         text = when {
-                                            selectedRatio >= 1.0f -> "100% Fully grown tree"
-                                            selectedRatio >= 0.75f -> "75% Nearly fully grown"
-                                            selectedRatio >= 0.50f -> "50% Half-grown tree"
-                                            selectedRatio >= 0.25f -> "25% Small tree"
-                                            else -> "0% No tree yet"
+                                            selectedRatio >= 1.0f -> "100% Fully Grown Tree"
+                                            selectedRatio >= 0.75f -> "75% Nearly Fully Grown"
+                                            selectedRatio >= 0.50f -> "50% Half-Grown Tree"
+                                            selectedRatio >= 0.25f -> "25% Small Tree"
+                                            else -> "No Growth Yet (0%)"
                                         },
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = if (selectedActivity > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
@@ -2232,7 +2311,7 @@ private fun GardenScreen(state: TodayUiState, tasks: List<TaskEntity>) {
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    "$selectedActivity of ${tasks.size} tasks completed · ${selectedActivity * 25} water collected",
+                                    "$selectedActivity of ${tasks.size} completed • ${selectedActivity * 25} water collected",
                                     style = MaterialTheme.typography.labelMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -2620,6 +2699,177 @@ private fun RecoveryCard() {
 
 
 
+@Composable
+private fun CircularFocusDial(
+    minutes: Int,
+    isRunning: Boolean,
+    onMinutesChanged: (Int) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val haptics = LocalHapticFeedback.current
+    var lastVibratedTenMark by remember { mutableIntStateOf((minutes / 10) * 10) }
+
+    fun triggerTenMinVibration() {
+        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+        val vibrator = context.getSystemService(android.content.Context.VIBRATOR_SERVICE) as? android.os.Vibrator
+        if (android.os.Build.VERSION.SDK_INT >= 26) {
+            vibrator?.vibrate(android.os.VibrationEffect.createOneShot(60L, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
+        } else {
+            vibrator?.vibrate(60L)
+        }
+    }
+
+    Box(
+        modifier = modifier
+            .size(240.dp)
+            .pointerInput(isRunning) {
+                if (isRunning) return@pointerInput
+                detectDragGestures(
+                    onDragStart = { offset ->
+                        val centerX = size.width / 2f
+                        val centerY = size.height / 2f
+                        val dx = offset.x - centerX
+                        val dy = offset.y - centerY
+                        val angleRad = kotlin.math.atan2(dy, dx)
+                        val angleDeg = (Math.toDegrees(angleRad.toDouble()) + 90.0 + 360.0) % 360.0
+                        val rawMins = (angleDeg / 360.0 * 60.0).roundToInt().coerceIn(1, 60)
+                        
+                        if (rawMins != minutes) {
+                            onMinutesChanged(rawMins)
+                            val tenMark = (rawMins / 10) * 10
+                            if (tenMark > 0 && tenMark != lastVibratedTenMark) {
+                                lastVibratedTenMark = tenMark
+                                triggerTenMinVibration()
+                            }
+                        }
+                    },
+                    onDrag = { change, _ ->
+                        change.consume()
+                        val centerX = size.width / 2f
+                        val centerY = size.height / 2f
+                        val dx = change.position.x - centerX
+                        val dy = change.position.y - centerY
+                        val angleRad = kotlin.math.atan2(dy, dx)
+                        val angleDeg = (Math.toDegrees(angleRad.toDouble()) + 90.0 + 360.0) % 360.0
+                        val rawMins = (angleDeg / 360.0 * 60.0).roundToInt().coerceIn(1, 60)
+                        
+                        if (rawMins != minutes) {
+                            onMinutesChanged(rawMins)
+                            val tenMark = (rawMins / 10) * 10
+                            if (tenMark > 0 && tenMark != lastVibratedTenMark) {
+                                lastVibratedTenMark = tenMark
+                                triggerTenMinVibration()
+                            }
+                        }
+                    }
+                )
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        val strokePx = with(LocalDensity.current) { 14.dp.toPx() }
+        val primaryColor = MaterialTheme.colorScheme.primary
+        val onSurfaceColor = MaterialTheme.colorScheme.onSurface
+        val textPaint = remember(onSurfaceColor) {
+            android.graphics.Paint().apply {
+                color = onSurfaceColor.toArgb()
+                textSize = 28f
+                textAlign = android.graphics.Paint.Align.CENTER
+                isAntiAlias = true
+                typeface = android.graphics.Typeface.DEFAULT_BOLD
+            }
+        }
+
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val center = Offset(size.width / 2f, size.height / 2f)
+            val radius = (size.minDimension - strokePx) / 2f * 0.78f
+
+            // 1. Background Circle Track
+            drawCircle(
+                color = Color.White.copy(alpha = 0.12f),
+                radius = radius,
+                center = center,
+                style = Stroke(width = strokePx)
+            )
+
+            // 2. Active Arc
+            val sweepAngle = (minutes.toFloat() / 60f) * 360f
+            drawArc(
+                brush = Brush.sweepGradient(
+                    colors = listOf(
+                        Color(0xFF38BDF8),
+                        Color(0xFF818CF8),
+                        Color(0xFFF472B6),
+                        Color(0xFF38BDF8)
+                    )
+                ),
+                startAngle = -90f,
+                sweepAngle = sweepAngle,
+                useCenter = false,
+                topLeft = Offset(center.x - radius, center.y - radius),
+                size = Size(radius * 2, radius * 2),
+                style = Stroke(width = strokePx, cap = StrokeCap.Round)
+            )
+
+            // 3. 10-Minute Tick Markers & Labels (10m, 20m, 30m, 40m, 50m, 60m)
+            for (m in listOf(10, 20, 30, 40, 50, 60)) {
+                val tickAngleRad = Math.toRadians((-90.0 + (m / 60.0) * 360.0))
+                val tickDistInner = radius - (strokePx / 2f) - 4.dp.toPx()
+                val tickDistOuter = radius + (strokePx / 2f) + 4.dp.toPx()
+                
+                val ix = center.x + kotlin.math.cos(tickAngleRad).toFloat() * tickDistInner
+                val iy = center.y + kotlin.math.sin(tickAngleRad).toFloat() * tickDistInner
+                val ox = center.x + kotlin.math.cos(tickAngleRad).toFloat() * tickDistOuter
+                val oy = center.y + kotlin.math.sin(tickAngleRad).toFloat() * tickDistOuter
+
+                drawLine(
+                    color = if (m <= minutes) primaryColor else Color.White.copy(alpha = 0.35f),
+                    start = Offset(ix, iy),
+                    end = Offset(ox, oy),
+                    strokeWidth = 2.5.dp.toPx(),
+                    cap = StrokeCap.Round
+                )
+
+                // Label text at outer radius
+                val labelDist = radius + 20.dp.toPx()
+                val lx = center.x + kotlin.math.cos(tickAngleRad).toFloat() * labelDist
+                val ly = center.y + kotlin.math.sin(tickAngleRad).toFloat() * labelDist + 8f
+                drawContext.canvas.nativeCanvas.drawText(
+                    "${m}m",
+                    lx,
+                    ly,
+                    textPaint.apply {
+                        color = (if (m <= minutes) primaryColor else onSurfaceColor.copy(alpha = 0.6f)).toArgb()
+                    }
+                )
+            }
+
+            // 4. Glowing Knob Handle at Current Angle
+            if (!isRunning) {
+                val knobAngleRad = Math.toRadians((-90.0 + (minutes / 60.0) * 360.0))
+                val kx = center.x + kotlin.math.cos(knobAngleRad).toFloat() * radius
+                val ky = center.y + kotlin.math.sin(knobAngleRad).toFloat() * radius
+
+                drawCircle(
+                    color = primaryColor.copy(alpha = 0.45f),
+                    radius = 14.dp.toPx(),
+                    center = Offset(kx, ky)
+                )
+                drawCircle(
+                    color = primaryColor,
+                    radius = 9.dp.toPx(),
+                    center = Offset(kx, ky)
+                )
+                drawCircle(
+                    color = Color.White,
+                    radius = 4.dp.toPx(),
+                    center = Offset(kx, ky)
+                )
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
 private fun FocusScreen(tasks: List<TaskEntity>) {
@@ -2639,6 +2889,16 @@ private fun FocusScreen(tasks: List<TaskEntity>) {
     androidx.compose.runtime.LaunchedEffect(isRunning, secondsLeft) {
         FocusNotificationHelper.updateFocusNotification(context, isRunning, secondsLeft, selectedMinutes)
         if (isRunning && secondsLeft > 0) {
+            // Mobile vibrates every 10 minutes during countdown (e.g. at 50m, 40m, 30m, 20m, 10m remaining)
+            if (secondsLeft < (selectedMinutes * 60) && secondsLeft % (10 * 60) == 0) {
+                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                val vibrator = context.getSystemService(android.content.Context.VIBRATOR_SERVICE) as? android.os.Vibrator
+                if (android.os.Build.VERSION.SDK_INT >= 26) {
+                    vibrator?.vibrate(android.os.VibrationEffect.createOneShot(80L, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
+                } else {
+                    vibrator?.vibrate(80L)
+                }
+            }
             kotlinx.coroutines.delay(1000L)
             secondsLeft--
         } else if (isRunning && secondsLeft == 0) {
@@ -2689,36 +2949,6 @@ private fun FocusScreen(tasks: List<TaskEntity>) {
                         textAlign = TextAlign.Center
                     )
 
-                    if (!isRunning) {
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
-                            verticalArrangement = Arrangement.spacedBy(6.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            listOf(10, 15, 25, 45, 60).forEach { mins ->
-                                FilterChip(
-                                    selected = selectedMinutes == mins,
-                                    onClick = {
-                                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                        selectedMinutes = mins
-                                        secondsLeft = mins * 60
-                                    },
-                                    label = { Text("${mins}m") },
-                                    shape = RoundedCornerShape(12.dp)
-                                )
-                            }
-                            FilterChip(
-                                selected = selectedMinutes !in listOf(10, 15, 25, 45, 60),
-                                onClick = {
-                                    customInputText = selectedMinutes.toString()
-                                    showCustomDialog = true
-                                },
-                                label = { Text(if (selectedMinutes !in listOf(10, 15, 25, 45, 60)) "${selectedMinutes}m" else "Custom...") },
-                                shape = RoundedCornerShape(12.dp)
-                            )
-                        }
-                    }
-
                     val infiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition()
                     val pulse by infiniteTransition.animateFloat(
                         initialValue = 0.95f,
@@ -2731,13 +2961,13 @@ private fun FocusScreen(tasks: List<TaskEntity>) {
                     )
                     
                     Box(
-                        modifier = Modifier.size(200.dp),
+                        modifier = Modifier.size(240.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         if (isRunning) {
                             Box(
                                 modifier = Modifier
-                                    .size(200.dp)
+                                    .size(240.dp)
                                     .graphicsLayer {
                                         scaleX = pulse
                                         scaleY = pulse
@@ -2754,73 +2984,40 @@ private fun FocusScreen(tasks: List<TaskEntity>) {
                                     )
                             )
                         }
-                    
-                        Box(
-                            modifier = Modifier.size(180.dp),
-                            contentAlignment = Alignment.Center
+
+                        // Interactive Circular Ring Dial
+                        CircularFocusDial(
+                            minutes = if (isRunning) (secondsLeft / 60).coerceAtLeast(1) else selectedMinutes,
+                            isRunning = isRunning,
+                            onMinutesChanged = { newMins ->
+                                selectedMinutes = newMins
+                                secondsLeft = newMins * 60
+                            }
+                        )
+
+                        // Center Time Display (Clickable when paused to edit duration)
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.clickable(enabled = !isRunning) {
+                                customInputText = selectedMinutes.toString()
+                                showCustomDialog = true
+                            }
                         ) {
-                            Canvas(modifier = Modifier.fillMaxSize()) {
-                                val stroke = 12.dp.toPx()
-                                val radius = (size.minDimension - stroke) / 2f
-                                val center = Offset(size.width / 2f, size.height / 2f)
-
-                                drawCircle(
-                                    color = Color.White.copy(alpha = 0.1f),
-                                    radius = radius,
-                                    center = center,
-                                    style = Stroke(width = stroke)
-                                )
-
-                                drawArc(
-                                    brush = Brush.sweepGradient(
-                                        colors = listOf(
-                                            Color(0xFF38BDF8),
-                                            Color(0xFF818CF8),
-                                            Color(0xFF38BDF8)
-                                        )
-                                    ),
-                                    startAngle = -90f,
-                                    sweepAngle = 360f * animatedProgress,
-                                    useCenter = false,
-                                    topLeft = Offset(stroke / 2f, stroke / 2f),
-                                    size = Size(size.width - stroke, size.height - stroke),
-                                    style = Stroke(width = stroke, cap = StrokeCap.Round)
-                                )
-                                
-                                // Specular Highlight on Timer Ring
-                                drawCircle(
-                                    color = Color.White.copy(alpha = 0.8f),
-                                    radius = stroke / 2f * 0.6f,
-                                    center = Offset(
-                                        x = size.width / 2f,
-                                        y = stroke / 2f
-                                    )
-                                )
-                            }
-
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                modifier = Modifier.clickable(enabled = !isRunning) {
-                                    customInputText = selectedMinutes.toString()
-                                    showCustomDialog = true
+                            Text(
+                                text = timeFormatted,
+                                style = MaterialTheme.typography.headlineLarge,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.graphicsLayer {
+                                    scaleX = if (isRunning) pulse else 1f
+                                    scaleY = if (isRunning) pulse else 1f
                                 }
-                            ) {
-                                Text(
-                                    text = timeFormatted,
-                                    style = MaterialTheme.typography.headlineLarge,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    modifier = Modifier.graphicsLayer {
-                                        scaleX = if (isRunning) pulse else 1f
-                                        scaleY = if (isRunning) pulse else 1f
-                                    }
-                                )
-                                Text(
-                                    text = if (isRunning) "Deep Focus" else "Tap to edit duration",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            }
+                            )
+                            Text(
+                                text = if (isRunning) "Deep Focus" else "Drag ring or tap to set",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
                         }
                     }
 
@@ -2882,15 +3079,15 @@ private fun FocusScreen(tasks: List<TaskEntity>) {
                             verticalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
                             Text(
-                                "Set Focus Duration",
+                                "Set Focus Duration (Max 60m)",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold
                             )
                             GlassInput(
                                 value = customInputText,
-                                onValueChange = { customInputText = it.filter { char -> char.isDigit() }.take(3) },
-                                label = "Duration (Minutes)",
-                                placeholder = "e.g. 30"
+                                onValueChange = { customInputText = it.filter { char -> char.isDigit() }.take(2) },
+                                label = "Minutes (1 - 60)",
+                                placeholder = "e.g. 25"
                             )
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -2903,7 +3100,7 @@ private fun FocusScreen(tasks: List<TaskEntity>) {
                                 Spacer(Modifier.width(8.dp))
                                 Button(
                                     onClick = {
-                                        val mins = customInputText.toIntOrNull()?.coerceIn(1, 180) ?: 25
+                                        val mins = customInputText.toIntOrNull()?.coerceIn(1, 60) ?: 25
                                         selectedMinutes = mins
                                         secondsLeft = mins * 60
                                         isRunning = false

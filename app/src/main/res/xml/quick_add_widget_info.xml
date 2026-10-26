@@ -4,6 +4,8 @@
     android:minHeight="40dp"
     android:targetCellWidth="2"
     android:targetCellHeight="1"
+    android:previewLayout="@layout/widget_quick_add"
+    android:previewImage="@drawable/widget_quick_add_preview"
     android:updatePeriodMillis="86400000"
     android:initialLayout="@layout/widget_quick_add"
     android:resizeMode="horizontal|vertical"

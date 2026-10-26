@@ -12,7 +12,8 @@
         android:id="@+id/week_widget_title"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:textColor="#FFFFFF"
+        android:text="Your week"
+        android:textColor="@color/widget_text_title"
         android:textSize="16sp"
         android:textStyle="bold" />
 
@@ -21,7 +22,8 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
-        android:textColor="#38BDF8"
+        android:text="0 check-ins"
+        android:textColor="@color/widget_accent_primary"
         android:textStyle="bold"
         android:textSize="28sp" />
 
@@ -30,6 +32,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="6dp"
-        android:textColor="#B3FFFFFF"
+        android:text="Small steps add up"
+        android:textColor="@color/widget_text_subtitle"
         android:textSize="13sp" />
 </LinearLayout>

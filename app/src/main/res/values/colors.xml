@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- App & Widget Light Mode Colors -->
+    <color name="widget_bg_start">#FFFFFF</color>
+    <color name="widget_bg_end">#F1F5F9</color>
+    <color name="widget_stroke">#30000000</color>
+    <color name="widget_text_title">#0F172A</color>
+    <color name="widget_text_subtitle">#475569</color>
+    <color name="widget_accent_primary">#0066FF</color>
+    <color name="widget_accent_secondary">#6366F1</color>
+    <color name="widget_divider">#20000000</color>
+    <color name="widget_progress_bg">#E2E8F0</color>
+</resources>

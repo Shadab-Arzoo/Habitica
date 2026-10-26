@@ -22,14 +22,15 @@
             android:layout_width="32dp"
             android:layout_height="32dp"
             android:src="@android:drawable/ic_menu_add"
-            android:tint="#38BDF8" />
+            android:tint="@color/widget_accent_primary"
+            android:importantForAccessibility="no" />
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
             android:text="New Task"
-            android:textColor="#FFFFFF"
+            android:textColor="@color/widget_text_title"
             android:textSize="14sp"
             android:textStyle="bold" />
     </LinearLayout>
@@ -38,7 +39,7 @@
         android:layout_width="1dp"
         android:layout_height="match_parent"
         android:layout_marginVertical="8dp"
-        android:background="#30FFFFFF"
+        android:background="@color/widget_divider"
         android:importantForAccessibility="no" />
 
     <LinearLayout
@@ -54,14 +55,15 @@
             android:layout_width="32dp"
             android:layout_height="32dp"
             android:src="@android:drawable/ic_menu_edit"
-            android:tint="#818CF8" />
+            android:tint="@color/widget_accent_secondary"
+            android:importantForAccessibility="no" />
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
             android:text="New Habit"
-            android:textColor="#FFFFFF"
+            android:textColor="@color/widget_text_title"
             android:textSize="14sp"
             android:textStyle="bold" />
     </LinearLayout>
