@@ -574,12 +574,12 @@ private fun RoutineFlowApp(
                                         )
                                     )
                                 } else {
-                                    // Ring fully complete (5 dots) -> subtle pulse / spark flare on the 5 dots
+                                    // Ring fully complete (5 dots) -> rich node energy pulse & spark fan
                                     pulseAnim.snapTo(0f)
                                     pulseAnim.animateTo(
                                         1f,
                                         animationSpec = androidx.compose.animation.core.tween(
-                                            durationMillis = 500,
+                                            durationMillis = 600,
                                             easing = androidx.compose.animation.core.FastOutSlowInEasing
                                         )
                                     )
@@ -591,6 +591,7 @@ private fun RoutineFlowApp(
                         Canvas(modifier = Modifier.fillMaxSize()) {
                             val center = Offset(size.width / 2f, size.height / 2f)
                             val radius = size.minDimension / 2f * 0.88f
+                            val pPulse = pulseAnim.value
                             
                             // Subtle background track ring
                             drawCircle(
@@ -599,6 +600,18 @@ private fun RoutineFlowApp(
                                 center = center,
                                 style = Stroke(width = 1.5.dp.toPx())
                             )
+
+                            // Subtle expanding shockwave ring on repeat click when 5 dots present
+                            if (pPulse > 0f && unlockedCount >= 5) {
+                                val shockwaveRadius = radius + pPulse * 16.dp.toPx()
+                                val shockwaveAlpha = (1f - pPulse) * 0.5f
+                                drawCircle(
+                                    color = Color.White.copy(alpha = shockwaveAlpha),
+                                    radius = shockwaveRadius,
+                                    center = center,
+                                    style = Stroke(width = 1.5.dp.toPx() * (1f - pPulse * 0.5f))
+                                )
+                            }
 
                             val streams = listOf(
                                 Pair(Color(0xFF38BDF8), 0f),       // 1st click: Sky Cyan
@@ -610,7 +623,6 @@ private fun RoutineFlowApp(
                             
                             if (unlockedCount > 0) {
                                 val activeStreams = streams.take(unlockedCount)
-                                val pPulse = pulseAnim.value
                                 
                                 activeStreams.forEachIndexed { index, (color, startAngleOffset) ->
                                     val targetSweep = 50f
@@ -632,37 +644,53 @@ private fun RoutineFlowApp(
                                             style = Stroke(width = 3.5.dp.toPx(), cap = StrokeCap.Round)
                                         )
 
-                                        // Exactly 1 glowing node dot at the head of this arc (Total 5 dots at the end!)
+                                        // Exactly 1 glowing node dot at the head of this arc
                                         val headAngleRad = Math.toRadians((startAngleOffset + currentSweep).toDouble())
                                         val px = center.x + kotlin.math.cos(headAngleRad).toFloat() * radius
                                         val py = center.y + kotlin.math.sin(headAngleRad).toFloat() * radius
                                         
-                                        // Outer halo dot
-                                        val haloRadius = 4.5.dp.toPx() + (if (pPulse > 0f) (1f - pPulse) * 3.dp.toPx() else 0f)
+                                        // Dynamic node aura glow pulse on click
+                                        val pulseExpansion = if (pPulse > 0f) kotlin.math.sin(pPulse * Math.PI).toFloat() * 4.5.dp.toPx() else 0f
+                                        val haloRadius = 4.5.dp.toPx() + pulseExpansion
+                                        val coreRadius = 2.0.dp.toPx() + (pulseExpansion * 0.35f)
+                                        
                                         drawCircle(
-                                            color = color.copy(alpha = 0.45f),
+                                            color = color.copy(alpha = 0.45f + (if (pPulse > 0f) (1f - pPulse) * 0.3f else 0f)),
                                             radius = haloRadius,
                                             center = Offset(px, py)
                                         )
                                         // Pure white inner core dot
                                         drawCircle(
                                             color = Color.White,
-                                            radius = 2.0.dp.toPx(),
+                                            radius = coreRadius,
                                             center = Offset(px, py)
                                         )
 
-                                        // On repeat clicks when 5 dots are present: 1 subtle spark per dot radiating outwards
-                                        if (pPulse > 0f) {
-                                            val sparkDist = radius + pPulse * 12.dp.toPx()
-                                            val sx = center.x + kotlin.math.cos(headAngleRad).toFloat() * sparkDist
-                                            val sy = center.y + kotlin.math.sin(headAngleRad).toFloat() * sparkDist
-                                            val sparkAlpha = (1f - pPulse) * 0.8f
+                                        // On repeat clicks when 5 dots present: 3 directional sparks shooting outward from each node dot
+                                        if (pPulse > 0f && unlockedCount >= 5) {
+                                            val sparkOffsets = listOf(-0.25, 0.0, 0.25) // Fan angle spread
+                                            val sparkAlpha = (1f - pPulse) * 0.85f
                                             
-                                            drawCircle(
-                                                color = color.copy(alpha = sparkAlpha),
-                                                radius = 2.0.dp.toPx() * (1f - pPulse * 0.5f),
-                                                center = Offset(sx, sy)
-                                            )
+                                            sparkOffsets.forEachIndexed { sIdx, angleOffset ->
+                                                val sparkAngle = headAngleRad + angleOffset
+                                                val sparkDist = radius + pPulse * (14.dp.toPx() + sIdx * 3.dp.toPx())
+                                                val sx = center.x + kotlin.math.cos(sparkAngle).toFloat() * sparkDist
+                                                val sy = center.y + kotlin.math.sin(sparkAngle).toFloat() * sparkDist
+                                                val sparkSize = (2.2.dp.toPx() * (1f - pPulse * 0.4f)).coerceAtLeast(1f)
+                                                
+                                                // Outer spark glow
+                                                drawCircle(
+                                                    color = color.copy(alpha = sparkAlpha * 0.7f),
+                                                    radius = sparkSize * 1.5f,
+                                                    center = Offset(sx, sy)
+                                                )
+                                                // Bright spark center
+                                                drawCircle(
+                                                    color = Color.White.copy(alpha = sparkAlpha),
+                                                    radius = sparkSize * 0.7f,
+                                                    center = Offset(sx, sy)
+                                                )
+                                            }
                                         }
                                     }
                                 }
