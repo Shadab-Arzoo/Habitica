@@ -19,6 +19,8 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideInVertically
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
@@ -82,6 +84,7 @@ import androidx.compose.material.icons.rounded.LightMode
 import androidx.compose.material.icons.rounded.LocalFlorist
 import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.Palette
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.SelfImprovement
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.GridView
@@ -2209,13 +2212,6 @@ private fun GardenWorldView(state: TodayUiState, tasks: List<TaskEntity>) {
                                 }
                                 .pointerInput(is3DMode, pastDays) {
                                     detectTapGestures(
-                                        onDoubleTap = {
-                                            zoomScale = 1f
-                                            if (is3DMode) {
-                                                rotationAngle = 0f
-                                                tiltAngle = 0.45f
-                                            }
-                                        },
                                         onTap = { tapOffset ->
                                             val canvasWidth = size.width.toFloat()
                                             val canvasHeight = size.height.toFloat()
@@ -2421,6 +2417,12 @@ private fun GardenWorldView(state: TodayUiState, tasks: List<TaskEntity>) {
                         }
                     }
 
+                    val isCameraModified = is3DMode && (
+                        kotlin.math.abs(rotationAngle) > 1f ||
+                        kotlin.math.abs(tiltAngle - 0.45f) > 0.05f ||
+                        kotlin.math.abs(zoomScale - 1f) > 0.05f
+                    )
+
                     // Floating Glass Toggle
                     Row(
                         modifier = Modifier
@@ -2429,7 +2431,9 @@ private fun GardenWorldView(state: TodayUiState, tasks: List<TaskEntity>) {
                             .clip(RoundedCornerShape(32.dp))
                             .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.65f))
                             .border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(32.dp))
-                            .padding(4.dp)
+                            .padding(4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         Surface(
                             shape = CircleShape,
@@ -2440,6 +2444,7 @@ private fun GardenWorldView(state: TodayUiState, tasks: List<TaskEntity>) {
                                     is3DMode = false 
                                     rotationAngle = 0f
                                     tiltAngle = 0.45f
+                                    zoomScale = 1f
                                 }
                         ) {
                             Box(contentAlignment = Alignment.Center) {
@@ -2465,6 +2470,46 @@ private fun GardenWorldView(state: TodayUiState, tasks: List<TaskEntity>) {
                                     modifier = Modifier.size(20.dp),
                                     tint = if (is3DMode) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
                                 )
+                            }
+                        }
+                        AnimatedVisibility(
+                            visible = isCameraModified,
+                            enter = expandHorizontally(
+                                animationSpec = spring(dampingRatio = 0.72f, stiffness = 380f)
+                            ) + fadeIn(
+                                animationSpec = androidx.compose.animation.core.tween(220)
+                            ) + scaleIn(
+                                initialScale = 0.4f,
+                                animationSpec = spring(dampingRatio = 0.65f, stiffness = 420f)
+                            ),
+                            exit = shrinkHorizontally(
+                                animationSpec = spring(dampingRatio = 0.8f, stiffness = 450f)
+                            ) + fadeOut(
+                                animationSpec = androidx.compose.animation.core.tween(180)
+                            ) + scaleOut(
+                                targetScale = 0.4f,
+                                animationSpec = androidx.compose.animation.core.tween(180)
+                            )
+                        ) {
+                            Surface(
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.85f),
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clickable {
+                                        zoomScale = 1f
+                                        rotationAngle = 0f
+                                        tiltAngle = 0.45f
+                                    }
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        Icons.Rounded.Refresh, 
+                                        contentDescription = "Reset Camera View", 
+                                        modifier = Modifier.size(20.dp),
+                                        tint = MaterialTheme.colorScheme.error
+                                    )
+                                }
                             }
                         }
                     }
