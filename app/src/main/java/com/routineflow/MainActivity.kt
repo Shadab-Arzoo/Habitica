@@ -597,7 +597,7 @@ private fun RoutineFlowApp(
                                     // Each stream draws an arc tracing around the circle
                                     // The arc length shrinks as it completes its orbit
                                     val currentAngle = startAngleOffset + (p * 360f * 1.5f) // Spins 1.5 times
-                                    val sweep = 90f * (1f - p) // Tail gets shorter
+                                    val sweep = 65f * (1f - p) // Prevent overlap! 65 degrees max
                                     
                                     drawArc(
                                         brush = Brush.sweepGradient(
@@ -632,10 +632,10 @@ private fun RoutineFlowApp(
                                         )
                                         
                                         // Eject magical sparks outward based on click count intensity!
-                                        val sparkCount = (triggerOrbit.intValue - 2).coerceIn(0, 3)
+                                        val sparkCount = (triggerOrbit.intValue - 1).coerceIn(0, 3)
                                         for (s in 1..sparkCount) {
                                             val sparkDist = radius + (p * 20f * s)
-                                            val sparkAngle = headAngleRad + (s * 0.15)
+                                            val sparkAngle = headAngleRad + (s * 0.3)
                                             val sx = center.x + kotlin.math.cos(sparkAngle).toFloat() * sparkDist
                                             val sy = center.y + kotlin.math.sin(sparkAngle).toFloat() * sparkDist
                                             drawCircle(
@@ -644,6 +644,30 @@ private fun RoutineFlowApp(
                                                 center = Offset(sx, sy)
                                             )
                                         }
+                                    }
+                                }
+                                
+                                // End burst explosion if the user clicked many times!
+                                if (p > 0.8f && triggerOrbit.intValue >= 3) {
+                                    val burstP = ((p - 0.8f) / 0.2f).coerceIn(0f, 1f)
+                                    val burstAlpha = 1f - burstP
+                                    for (i in 0 until 12) {
+                                        val angle = i * (Math.PI / 6.0)
+                                        val dist = radius + burstP * 30.dp.toPx()
+                                        val bx = center.x + kotlin.math.cos(angle).toFloat() * dist
+                                        val by = center.y + kotlin.math.sin(angle).toFloat() * dist
+                                        val color = streams[i % 5].first
+                                        
+                                        drawCircle(
+                                            color = color.copy(alpha = burstAlpha * 0.8f),
+                                            radius = 3.dp.toPx() * burstAlpha,
+                                            center = Offset(bx, by)
+                                        )
+                                        drawCircle(
+                                            color = Color.White.copy(alpha = burstAlpha),
+                                            radius = 1.dp.toPx() * burstAlpha,
+                                            center = Offset(bx, by)
+                                        )
                                     }
                                 }
                             }
