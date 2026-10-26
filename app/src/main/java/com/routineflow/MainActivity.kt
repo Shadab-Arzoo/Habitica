@@ -2036,8 +2036,8 @@ private fun GardenScreen(state: TodayUiState, tasks: List<TaskEntity>) {
                                     }
                                 }
                             } else {
-                                val startX = size.width / 2f - (tileWidth * 0.15f) // Nudge left to perfectly center the 7x4 grid visually
-                                val startY = 90.dp.toPx()
+                                val startX = size.width / 2f + (tileWidth * 0.25f) // Shift right to center perfectly
+                                val startY = 120.dp.toPx() // Shift down to center perfectly
                                 val staticScale = 0.95f // Size up to fill the card
                                 
                                 pastDays.forEachIndexed { index, dayDate ->
