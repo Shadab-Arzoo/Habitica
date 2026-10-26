@@ -480,6 +480,13 @@ private fun RoutineFlowApp(
                         }
                     }
 
+                    var iconRotation by remember { mutableFloatStateOf(0f) }
+                    val animatedIconRotation by animateFloatAsState(
+                        targetValue = iconRotation,
+                        animationSpec = spring(dampingRatio = 0.5f, stiffness = 150f),
+                        label = "header_icon_rotation"
+                    )
+
                     Box(
                         modifier = Modifier
                             .size(54.dp)
@@ -507,7 +514,26 @@ private fun RoutineFlowApp(
                                     )
                                 ),
                                 shape = CircleShape
-                            ),
+                            )
+                            .pointerInput(Unit) {
+                                detectDragGestures(
+                                    onDrag = { change, dragAmount ->
+                                        change.consume()
+                                        iconRotation += dragAmount.x + dragAmount.y
+                                    },
+                                    onDragEnd = {
+                                        // Snap to nearest 360 degree mark on release
+                                        iconRotation = kotlin.math.round(iconRotation / 360f) * 360f
+                                    }
+                                )
+                            }
+                            .clickable(
+                                interactionSource = null,
+                                indication = null
+                            ) {
+                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                iconRotation += 360f
+                            },
                         contentAlignment = Alignment.Center
                     ) {
                         AnimatedContent(
@@ -529,7 +555,9 @@ private fun RoutineFlowApp(
                                 },
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(26.dp)
+                                modifier = Modifier
+                                    .size(26.dp)
+                                    .graphicsLayer { rotationZ = animatedIconRotation }
                             )
                         }
                         
