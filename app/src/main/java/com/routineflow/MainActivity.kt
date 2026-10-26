@@ -72,7 +72,9 @@ import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.SelfImprovement
 import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.GridView
 import androidx.compose.material.icons.rounded.SportsEsports
+import androidx.compose.material.icons.rounded.ViewInAr
 import androidx.compose.material.icons.rounded.Today
 import androidx.compose.material.icons.rounded.WaterDrop
 import androidx.compose.material3.AlertDialog
@@ -162,6 +164,7 @@ import com.routineflow.domain.PlannableTask
 import com.routineflow.domain.PlannerEngine
 import com.routineflow.domain.PlannerRequest
 import com.routineflow.domain.PlannerResult
+import com.routineflow.notifications.FocusNotificationHelper
 import com.routineflow.notifications.ReminderReceiver
 import com.routineflow.ui.OnboardingScreen
 import com.routineflow.ui.OnboardingViewModel
@@ -214,17 +217,19 @@ private fun RoutineFlowRoot() {
                 AppLockScreen(
                     onAuthenticated = { isAuthenticated = true }
                 )
-            } else if (onboarding.completed) {
-                RoutineFlowApp(
-                    darkMode = isDarkMode,
-                    onThemeToggle = { onboardingViewModel.setDarkTheme(!isDarkMode) },
-                    reducedMotion = reducedMotion,
-                    onReducedMotionChange = onboardingViewModel::setReducedMotion,
-                    appLockEnabled = appLockEnabled,
-                    onAppLockChange = onboardingViewModel::setAppLockEnabled
-                )
             } else {
-                OnboardingScreen(onFinished = {})
+                when (onboarding.completed) {
+                    true -> RoutineFlowApp(
+                        darkMode = isDarkMode,
+                        onThemeToggle = { onboardingViewModel.setDarkTheme(!isDarkMode) },
+                        reducedMotion = reducedMotion,
+                        onReducedMotionChange = onboardingViewModel::setReducedMotion,
+                        appLockEnabled = appLockEnabled,
+                        onAppLockChange = onboardingViewModel::setAppLockEnabled
+                    )
+                    false -> OnboardingScreen(onFinished = {})
+                    null -> { /* Loading saved onboarding status on launch */ }
+                }
             }
         }
     }
@@ -882,7 +887,7 @@ private fun RoutineFlowApp(
                         Icon(
                             Icons.Rounded.Add,
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onPrimary,
+                            tint = Color.White,
                             modifier = Modifier
                                 .size(28.dp)
                                 .graphicsLayer {
@@ -2120,8 +2125,8 @@ private fun GardenScreen(state: TodayUiState, tasks: List<TaskEntity>) {
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(
-                                    Icons.Rounded.AutoAwesome, 
-                                    contentDescription = "Static Grid", 
+                                    Icons.Rounded.GridView, 
+                                    contentDescription = "2D Grid View", 
                                     modifier = Modifier.size(20.dp),
                                     tint = if (!is3DMode) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -2136,8 +2141,8 @@ private fun GardenScreen(state: TodayUiState, tasks: List<TaskEntity>) {
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(
-                                    Icons.Rounded.SportsEsports, 
-                                    contentDescription = "Movable Free Camera", 
+                                    Icons.Rounded.ViewInAr, 
+                                    contentDescription = "3D Orbit Camera View", 
                                     modifier = Modifier.size(20.dp),
                                     tint = if (is3DMode) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -2615,30 +2620,36 @@ private fun RecoveryCard() {
 
 
 
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
 private fun FocusScreen(tasks: List<TaskEntity>) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     val nextTask = tasks
         .filterNot { it.completed }
         .minByOrNull { it.estimatedMinutes ?: Int.MAX_VALUE }
 
-    var isRunning by remember { mutableStateOf(false) }
+    var selectedMinutes by remember { mutableIntStateOf(25) }
     var secondsLeft by remember { mutableIntStateOf(25 * 60) }
+    var isRunning by remember { mutableStateOf(false) }
     var completedSessions by remember { mutableIntStateOf(0) }
+    var showCustomDialog by remember { mutableStateOf(false) }
+    var customInputText by remember { mutableStateOf("") }
     val haptics = LocalHapticFeedback.current
 
     androidx.compose.runtime.LaunchedEffect(isRunning, secondsLeft) {
+        FocusNotificationHelper.updateFocusNotification(context, isRunning, secondsLeft, selectedMinutes)
         if (isRunning && secondsLeft > 0) {
             kotlinx.coroutines.delay(1000L)
             secondsLeft--
         } else if (isRunning && secondsLeft == 0) {
             isRunning = false
             completedSessions++
-            secondsLeft = 25 * 60
+            secondsLeft = selectedMinutes * 60
             haptics.performHapticFeedback(HapticFeedbackType.LongPress)
         }
     }
 
-    val totalSeconds = 25 * 60
+    val totalSeconds = (selectedMinutes * 60).coerceAtLeast(1)
     val progress = (secondsLeft.toFloat() / totalSeconds).coerceIn(0f, 1f)
     val animatedProgress by animateFloatAsState(
         targetValue = progress,
@@ -2665,15 +2676,48 @@ private fun FocusScreen(tasks: List<TaskEntity>) {
                 highlighted = true
             ) {
                 Column(
-                    modifier = Modifier.padding(24.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(18.dp)
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     Text(
                         text = "Pomodoro Focus Mode",
                         style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center
                     )
+
+                    if (!isRunning) {
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            listOf(10, 15, 25, 45, 60).forEach { mins ->
+                                FilterChip(
+                                    selected = selectedMinutes == mins,
+                                    onClick = {
+                                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        selectedMinutes = mins
+                                        secondsLeft = mins * 60
+                                    },
+                                    label = { Text("${mins}m") },
+                                    shape = RoundedCornerShape(12.dp)
+                                )
+                            }
+                            FilterChip(
+                                selected = selectedMinutes !in listOf(10, 15, 25, 45, 60),
+                                onClick = {
+                                    customInputText = selectedMinutes.toString()
+                                    showCustomDialog = true
+                                },
+                                label = { Text(if (selectedMinutes !in listOf(10, 15, 25, 45, 60)) "${selectedMinutes}m" else "Custom...") },
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                        }
+                    }
 
                     val infiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition()
                     val pulse by infiniteTransition.animateFloat(
@@ -2754,7 +2798,13 @@ private fun FocusScreen(tasks: List<TaskEntity>) {
                                 )
                             }
 
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.clickable(enabled = !isRunning) {
+                                    customInputText = selectedMinutes.toString()
+                                    showCustomDialog = true
+                                }
+                            ) {
                                 Text(
                                     text = timeFormatted,
                                     style = MaterialTheme.typography.headlineLarge,
@@ -2766,7 +2816,7 @@ private fun FocusScreen(tasks: List<TaskEntity>) {
                                     }
                                 )
                                 Text(
-                                    text = if (isRunning) "Deep Focus" else "Paused",
+                                    text = if (isRunning) "Deep Focus" else "Tap to edit duration",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.primary
                                 )
@@ -2800,7 +2850,8 @@ private fun FocusScreen(tasks: List<TaskEntity>) {
                         TextButton(
                             onClick = {
                                 isRunning = false
-                                secondsLeft = 25 * 60
+                                secondsLeft = selectedMinutes * 60
+                                FocusNotificationHelper.updateFocusNotification(context, false, 0, selectedMinutes)
                             }
                         ) {
                             Text("Reset", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -2814,6 +2865,56 @@ private fun FocusScreen(tasks: List<TaskEntity>) {
                             color = MaterialTheme.colorScheme.primary,
                             fontWeight = FontWeight.Bold
                         )
+                    }
+                }
+            }
+        }
+
+        if (showCustomDialog) {
+            item {
+                Dialog(onDismissRequest = { showCustomDialog = false }) {
+                    GlassSurface(
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        cornerRadius = 24.dp
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(20.dp),
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Text(
+                                "Set Focus Duration",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            GlassInput(
+                                value = customInputText,
+                                onValueChange = { customInputText = it.filter { char -> char.isDigit() }.take(3) },
+                                label = "Duration (Minutes)",
+                                placeholder = "e.g. 30"
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.End,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                TextButton(onClick = { showCustomDialog = false }) {
+                                    Text("Cancel")
+                                }
+                                Spacer(Modifier.width(8.dp))
+                                Button(
+                                    onClick = {
+                                        val mins = customInputText.toIntOrNull()?.coerceIn(1, 180) ?: 25
+                                        selectedMinutes = mins
+                                        secondsLeft = mins * 60
+                                        isRunning = false
+                                        showCustomDialog = false
+                                    },
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Text("Set")
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -3292,7 +3393,9 @@ private fun AllTasksScreen(
                     elevation = 0.dp
                 ) {
                     Column(
-                        modifier = Modifier.padding(24.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(24.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
@@ -3414,7 +3517,9 @@ private fun PlannerScreen(tasks: List<TaskEntity>) {
                     elevation = 0.dp
                 ) {
                     Column(
-                        modifier = Modifier.padding(24.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(24.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {

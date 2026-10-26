@@ -40,7 +40,7 @@ private val RoutineFlowLightColors = lightColorScheme(
 
 private val RoutineFlowDarkColors = darkColorScheme(
     primary = Color(0xFF38BDF8),
-    onPrimary = Color(0xFF0284C7),
+    onPrimary = Color.White,
     primaryContainer = Color(0xFF0369A1),
     onPrimaryContainer = Color(0xFFE0F2FE),
     secondary = Color(0xFF818CF8),

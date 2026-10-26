@@ -128,7 +128,7 @@ fun onboardingTaskTemplates(selectedCategories: Set<String>): List<TaskTemplate>
     }.distinctBy { it.title }
 
 data class OnboardingUiState(
-    val completed: Boolean = false,
+    val completed: Boolean? = null,
     val saving: Boolean = false,
     val error: String? = null,
     val reducedMotion: Boolean = false

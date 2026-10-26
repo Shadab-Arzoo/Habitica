@@ -9,7 +9,6 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
-import com.routineflow.R
 
 class ReminderReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -41,7 +40,9 @@ class ReminderReceiver : BroadcastReceiver() {
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setAutoCancel(true)
             .build()
-        NotificationManagerCompat.from(context).notify(habitId.toInt(), notification)
+        try {
+            NotificationManagerCompat.from(context).notify(habitId.toInt(), notification)
+        } catch (_: SecurityException) {}
     }
 
     companion object {
@@ -70,5 +71,82 @@ class ReminderReceiver : BroadcastReceiver() {
                     .createNotificationChannel(channel)
             }
         }
+    }
+}
+
+object FocusNotificationHelper {
+    private const val FOCUS_CHANNEL_ID = "focus_timer_channel"
+    private const val FOCUS_NOTIFICATION_ID = 9001
+
+    fun updateFocusNotification(context: Context, isRunning: Boolean, secondsLeft: Int, totalMinutes: Int) {
+        val notificationManager = NotificationManagerCompat.from(context)
+
+        if (android.os.Build.VERSION.SDK_INT >= 26) {
+            val channel = NotificationChannel(
+                FOCUS_CHANNEL_ID,
+                "Focus Timer",
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "Active countdown for Pomodoro Focus sessions"
+                setShowBadge(false)
+            }
+            val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+            nm?.createNotificationChannel(channel)
+        }
+
+        if (!isRunning || secondsLeft <= 0) {
+            notificationManager.cancel(FOCUS_NOTIFICATION_ID)
+            if (secondsLeft <= 0 && isRunning) {
+                val completeNotification = NotificationCompat.Builder(context, FOCUS_CHANNEL_ID)
+                    .setSmallIcon(android.R.drawable.ic_dialog_info)
+                    .setContentTitle("🎉 Focus Session Complete!")
+                    .setContentText("You completed $totalMinutes minutes of deep focus. Great job!")
+                    .setPriority(NotificationCompat.PRIORITY_HIGH)
+                    .setAutoCancel(true)
+                    .build()
+                try {
+                    notificationManager.notify(FOCUS_NOTIFICATION_ID + 1, completeNotification)
+                } catch (_: SecurityException) {}
+            }
+            return
+        }
+
+        if (
+            android.os.Build.VERSION.SDK_INT >= 33 &&
+            context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
+
+        val minutes = secondsLeft / 60
+        val seconds = secondsLeft % 60
+        val timeFormatted = String.format(java.util.Locale.getDefault(), "%02d:%02d", minutes, seconds)
+
+        val intent = context.packageManager.getLaunchIntentForPackage(context.packageName)?.apply {
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
+        }
+        val pendingIntent = intent?.let {
+            android.app.PendingIntent.getActivity(
+                context, 0, it,
+                android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+            )
+        }
+
+        val builder = NotificationCompat.Builder(context, FOCUS_CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_media_play)
+            .setContentTitle("🧘 Focus Session Active")
+            .setContentText("$timeFormatted remaining • Keep flowing")
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setCategory(NotificationCompat.CATEGORY_PROGRESS)
+
+        if (pendingIntent != null) {
+            builder.setContentIntent(pendingIntent)
+        }
+
+        try {
+            notificationManager.notify(FOCUS_NOTIFICATION_ID, builder.build())
+        } catch (_: SecurityException) {}
     }
 }
