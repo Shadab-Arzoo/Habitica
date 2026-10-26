@@ -340,6 +340,7 @@ private fun RoutineFlowApp(
     var showAddTask by remember { mutableStateOf(false) }
     var showSettingsDialog by remember { mutableStateOf(false) }
     var avatarClickCount by remember { mutableIntStateOf(0) }
+    var activeFocusTask by remember { mutableStateOf<TaskEntity?>(null) }
     var addWaterActive by remember { mutableStateOf(false) }
     var closingAddTask by remember { mutableStateOf(false) }
     var selectedTab by remember { mutableIntStateOf(0) }
@@ -427,11 +428,10 @@ private fun RoutineFlowApp(
 
             val title = when (selectedTab) {
                 0 -> greeting
-                1 -> "Tasks"
-                2 -> "Planner"
-                3 -> "Garden"
-                4 -> "Progress"
-                5 -> "Focus"
+                1 -> "Planner"
+                2 -> "Garden"
+                3 -> "Progress"
+                4 -> "Focus"
                 else -> "Settings"
             }
 
@@ -441,11 +441,10 @@ private fun RoutineFlowApp(
                     val remainingTasks = tasks.count { !it.completed }
                     "Today is $date • $remainingTasks task${if (remainingTasks != 1) "s" else ""} left"
                 }
-                1 -> "Your to-dos and priorities"
-                2 -> "Schedule your day"
-                3 -> "Grow your daily tree"
-                4 -> "Track your journey"
-                5 -> "Deep work sessions"
+                1 -> "Tasks & smart schedule"
+                2 -> "Grow your daily tree"
+                3 -> "Track your journey"
+                4 -> "Deep work sessions"
                 else -> "App preferences"
             }
 
@@ -909,13 +908,28 @@ private fun RoutineFlowApp(
                         tasks = tasks,
                         viewModel = viewModel,
                         onOpenAdd = { showAdd = true },
-                        onOpenTask = { openAddTaskWithWater() }
+                        onOpenTask = { openAddTaskWithWater() },
+                        onStartFocusOnTask = { task ->
+                            activeFocusTask = task
+                            selectedTab = 4
+                        }
                     )
-                    1 -> AllTasksScreen(tasks, viewModel, onOpenTask = { openAddTaskWithWater() })
-                    2 -> PlannerScreen(tasks)
-                    3 -> GardenScreen(state, tasks)
-                    4 -> ProgressScreen(state)
-                    5 -> FocusScreen(tasks)
+                    1 -> PlannerScreen(
+                        tasks = tasks,
+                        viewModel = viewModel,
+                        onOpenTask = { openAddTaskWithWater() },
+                        onStartFocusOnTask = { task ->
+                            activeFocusTask = task
+                            selectedTab = 4
+                        }
+                    )
+                    2 -> GardenScreen(state, tasks)
+                    3 -> ProgressScreen(state)
+                    4 -> FocusScreen(
+                        tasks = tasks,
+                        activeFocusTask = activeFocusTask,
+                        onClearFocusTask = { activeFocusTask = null }
+                    )
                     else -> SettingsScreen(
                         darkMode = darkMode,
                         onThemeToggle = onThemeToggle,
@@ -1211,10 +1225,9 @@ private fun RoutineFlowDockClearPdf(
     onTabSelected: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val labels = listOf("Today", "Tasks", "Planner", "Garden", "Progress", "Focus")
+    val labels = listOf("Today", "Planner", "Garden", "Progress", "Focus")
     val icons = listOf(
         Icons.Rounded.Today,
-        Icons.Rounded.Checklist,
         Icons.Rounded.Event,
         Icons.Rounded.LocalFlorist,
         Icons.Rounded.Insights,
@@ -1645,7 +1658,8 @@ private fun TodayScreen(
     tasks: List<TaskEntity>,
     viewModel: RoutineViewModel,
     onOpenAdd: () -> Unit,
-    onOpenTask: () -> Unit
+    onOpenTask: () -> Unit,
+    onStartFocusOnTask: ((TaskEntity) -> Unit)? = null
 ) {
     AdaptiveLazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -1654,7 +1668,7 @@ private fun TodayScreen(
     ) {
         item { DailyTreeCard(state, tasks) }
         item { MomentumCard(state) }
-        item { TaskSection(tasks, viewModel, onOpenTask) }
+        item { TaskSection(tasks, viewModel, onOpenTask, onStartFocusOnTask) }
         item {
             AnimatedVisibility(
                 visible = state.recoveryCount > 0,
@@ -3041,14 +3055,22 @@ private fun CircularFocusDial(
 
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
-private fun FocusScreen(tasks: List<TaskEntity>) {
+private fun FocusScreen(
+    tasks: List<TaskEntity>,
+    activeFocusTask: TaskEntity? = null,
+    onClearFocusTask: () -> Unit = {}
+) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val nextTask = tasks
         .filterNot { it.completed }
         .minByOrNull { it.estimatedMinutes ?: Int.MAX_VALUE }
 
-    var selectedMinutes by remember { mutableIntStateOf(25) }
-    var secondsLeft by remember { mutableIntStateOf(25 * 60) }
+    var selectedMinutes by remember(activeFocusTask) {
+        mutableIntStateOf(activeFocusTask?.estimatedMinutes?.coerceAtLeast(1) ?: 25)
+    }
+    var secondsLeft by remember(activeFocusTask) {
+        mutableIntStateOf((activeFocusTask?.estimatedMinutes?.coerceAtLeast(1) ?: 25) * 60)
+    }
     var isRunning by remember { mutableStateOf(false) }
     var completedSessions by remember { mutableIntStateOf(0) }
     var showCustomDialog by remember { mutableStateOf(false) }
@@ -3117,6 +3139,42 @@ private fun FocusScreen(tasks: List<TaskEntity>) {
                         fontWeight = FontWeight.Bold,
                         textAlign = TextAlign.Center
                     )
+
+                    if (activeFocusTask != null) {
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.85f),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        "🎯 Focused Task:",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        activeFocusTask.title,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                                    )
+                                }
+                                IconButton(onClick = onClearFocusTask) {
+                                    Icon(
+                                        Icons.Rounded.Close,
+                                        contentDescription = "Clear focused task",
+                                        tint = MaterialTheme.colorScheme.onPrimaryContainer
+                                    )
+                                }
+                            }
+                        }
+                    }
 
                     val infiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition()
                     val pulse by infiniteTransition.animateFloat(
@@ -3533,7 +3591,8 @@ private fun HabitCard(
 private fun TaskSection(
     tasks: List<TaskEntity>,
     viewModel: RoutineViewModel,
-    onOpenTask: () -> Unit
+    onOpenTask: () -> Unit,
+    onStartFocusOnTask: ((TaskEntity) -> Unit)? = null
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(
@@ -3590,7 +3649,8 @@ private fun TaskSection(
                 TaskCard(
                     task = task,
                     onComplete = { viewModel.setTaskCompleted(task.id, !task.completed) },
-                    onArchive = { viewModel.archiveTask(task.id) }
+                    onArchive = { viewModel.archiveTask(task.id) },
+                    onStartFocus = if (onStartFocusOnTask != null) { { onStartFocusOnTask(task) } } else null
                 )
             }
         }
@@ -3601,7 +3661,8 @@ private fun TaskSection(
 private fun TaskCard(
     task: TaskEntity,
     onComplete: () -> Unit,
-    onArchive: () -> Unit
+    onArchive: () -> Unit,
+    onStartFocus: (() -> Unit)? = null
 ) {
     val haptics = LocalHapticFeedback.current
     
@@ -3623,7 +3684,7 @@ private fun TaskCard(
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
-                onClick = { /* Just for the tactile press effect, actual action is on the check button */ }
+                onClick = { }
             ),
         cornerRadius = LiquidGlassTokens.cardRadius,
         elevation = if (task.completed) 0.dp else (if (isPressed) 2.dp else 4.dp),
@@ -3678,6 +3739,15 @@ private fun TaskCard(
                     )
                 }
             }
+            if (!task.completed && onStartFocus != null) {
+                IconButton(onClick = onStartFocus) {
+                    Icon(
+                        Icons.Rounded.SelfImprovement,
+                        contentDescription = "Start Focus Mode",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
             IconButton(onClick = onArchive) {
                 Icon(
                     Icons.Rounded.DeleteOutline,
@@ -3693,7 +3763,8 @@ private fun TaskCard(
 private fun AllTasksScreen(
     tasks: List<TaskEntity>,
     viewModel: RoutineViewModel,
-    onOpenTask: () -> Unit
+    onOpenTask: () -> Unit,
+    onStartFocusOnTask: ((TaskEntity) -> Unit)? = null
 ) {
     var selectedCategory by remember { mutableStateOf("All") }
     val categories = remember(tasks) {
@@ -3799,7 +3870,8 @@ private fun AllTasksScreen(
                     TaskCard(
                         task = task,
                         onComplete = { viewModel.setTaskCompleted(task.id, !task.completed) },
-                        onArchive = { viewModel.archiveTask(task.id) }
+                        onArchive = { viewModel.archiveTask(task.id) },
+                        onStartFocus = if (onStartFocusOnTask != null) { { onStartFocusOnTask(task) } } else null
                     )
                 }
             }
@@ -3807,8 +3879,120 @@ private fun AllTasksScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun PlannerScreen(tasks: List<TaskEntity>) {
+private fun PlannerScreen(
+    tasks: List<TaskEntity>,
+    viewModel: RoutineViewModel,
+    onOpenTask: () -> Unit,
+    onStartFocusOnTask: ((TaskEntity) -> Unit)? = null
+) {
+    var subViewMode by remember { mutableIntStateOf(0) } // 0 = List View, 1 = Timeline View
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        Surface(
+            color = MaterialTheme.colorScheme.surfaceContainer,
+            shape = RoundedCornerShape(16.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 6.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(4.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Surface(
+                    onClick = { subViewMode = 0 },
+                    shape = RoundedCornerShape(12.dp),
+                    color = if (subViewMode == 0) MaterialTheme.colorScheme.primary else Color.Transparent,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Row(
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(vertical = 10.dp)
+                    ) {
+                        Icon(
+                            Icons.Rounded.Checklist,
+                            contentDescription = null,
+                            tint = if (subViewMode == 0) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            "List View",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = if (subViewMode == 0) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                Surface(
+                    onClick = { subViewMode = 1 },
+                    shape = RoundedCornerShape(12.dp),
+                    color = if (subViewMode == 1) MaterialTheme.colorScheme.primary else Color.Transparent,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Row(
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(vertical = 10.dp)
+                    ) {
+                        Icon(
+                            Icons.Rounded.Event,
+                            contentDescription = null,
+                            tint = if (subViewMode == 1) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            "Timeline View",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = if (subViewMode == 1) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        }
+
+        AnimatedContent(
+            targetState = subViewMode,
+            transitionSpec = {
+                if (targetState > initialState) {
+                    (slideInHorizontally { it / 3 } + fadeIn()) togetherWith (slideOutHorizontally { -it / 3 } + fadeOut())
+                } else {
+                    (slideInHorizontally { -it / 3 } + fadeIn()) togetherWith (slideOutHorizontally { it / 3 } + fadeOut())
+                }
+            },
+            label = "planner_subview",
+            modifier = Modifier.fillMaxSize()
+        ) { view ->
+            if (view == 0) {
+                AllTasksScreen(
+                    tasks = tasks,
+                    viewModel = viewModel,
+                    onOpenTask = onOpenTask,
+                    onStartFocusOnTask = onStartFocusOnTask
+                )
+            } else {
+                TaskTimelineView(
+                    tasks = tasks,
+                    onStartFocusOnTask = onStartFocusOnTask
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TaskTimelineView(
+    tasks: List<TaskEntity>,
+    onStartFocusOnTask: ((TaskEntity) -> Unit)? = null
+) {
     val today = LocalDate.now()
     val plannerTasks = remember(tasks, today) {
         tasks.filterNot { it.completed }.map { task ->
@@ -3872,7 +4056,14 @@ private fun PlannerScreen(tasks: List<TaskEntity>) {
             }
             items(result.scheduled, key = { it.task.id }) { block ->
                 Box(Modifier.animateItem()) {
-                    PlannerBlockCard(block.start, block.end, block.task.title, block.task.category)
+                    val matchingTask = tasks.find { it.id == block.task.id }
+                    PlannerBlockCard(
+                        start = block.start,
+                        end = block.end,
+                        title = block.task.title,
+                        category = block.task.category,
+                        onStartFocus = if (matchingTask != null && onStartFocusOnTask != null) { { onStartFocusOnTask(matchingTask) } } else null
+                    )
                 }
             }
         } else if (plannerTasks.isEmpty()) {
@@ -3952,7 +4143,13 @@ private fun PlannerSummaryCard(result: PlannerResult) {
 }
 
 @Composable
-private fun PlannerBlockCard(start: LocalDateTime, end: LocalDateTime, title: String, category: String) {
+private fun PlannerBlockCard(
+    start: LocalDateTime,
+    end: LocalDateTime,
+    title: String,
+    category: String,
+    onStartFocus: (() -> Unit)? = null
+) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.Top
@@ -4036,6 +4233,16 @@ private fun PlannerBlockCard(start: LocalDateTime, end: LocalDateTime, title: St
                         color = MaterialTheme.colorScheme.onPrimaryContainer,
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                     )
+                }
+                if (onStartFocus != null) {
+                    Spacer(Modifier.width(6.dp))
+                    IconButton(onClick = onStartFocus) {
+                        Icon(
+                            Icons.Rounded.SelfImprovement,
+                            contentDescription = "Start Focus Mode",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
                 }
             }
         }
