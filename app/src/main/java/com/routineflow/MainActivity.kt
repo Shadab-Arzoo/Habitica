@@ -545,21 +545,67 @@ private fun RoutineFlowApp(
                                 haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                                 // Trigger playful bouncy scale pulse and sparkle
                                 addAnimationScope.launch {
-                                    iconClickPulse = 2f // Trigger sparkle
-                                    kotlinx.coroutines.delay(100)
-                                    iconClickPulse = 0.75f // Compress in
-                                    kotlinx.coroutines.delay(100)
-                                    iconClickPulse = 1f    // Spring out
+                                    // Set to 2f temporarily to flag the animation to start
+                                    iconClickPulse = 2f 
+                                    kotlinx.coroutines.delay(50)
+                                    iconClickPulse = 0.7f // Compress in
+                                    kotlinx.coroutines.delay(120)
+                                    iconClickPulse = 1f   // Spring out
                                 }
                             },
                         contentAlignment = Alignment.Center
                     ) {
-                        // Click Sparkle Burst overlay
-                        if (iconClickPulse > 1.5f) {
-                            CompletionSparkle(
-                                active = true,
-                                modifier = Modifier.fillMaxSize().graphicsLayer { scaleX = 1.5f; scaleY = 1.5f }
-                            )
+                        // Advanced Radial Orbit Energy Lines (Like Dock)
+                        val triggerOrbit = remember { mutableIntStateOf(0) }
+                        val orbitProgress = remember { androidx.compose.animation.core.Animatable(0f) }
+                        
+                        androidx.compose.runtime.LaunchedEffect(iconClickPulse) {
+                            if (iconClickPulse >= 2f) {
+                                triggerOrbit.intValue++
+                                orbitProgress.snapTo(0f)
+                                orbitProgress.animateTo(
+                                    1f,
+                                    animationSpec = androidx.compose.animation.core.tween(
+                                        durationMillis = 600,
+                                        easing = androidx.compose.animation.core.FastOutSlowInEasing
+                                    )
+                                )
+                                orbitProgress.snapTo(0f)
+                            }
+                        }
+
+                        if (orbitProgress.value > 0f) {
+                            Canvas(modifier = Modifier.fillMaxSize()) {
+                                val p = orbitProgress.value
+                                val center = Offset(size.width / 2f, size.height / 2f)
+                                val radius = size.minDimension / 2f * 0.85f
+                                
+                                val streams = listOf(
+                                    Pair(Color(0xFF38BDF8), 0f),      // Sky Cyan
+                                    Pair(Color(0xFF818CF8), 120f),    // Indigo
+                                    Pair(Color(0xFFF472B6), 240f)     // Neon Pink
+                                )
+                                
+                                streams.forEach { (color, startAngleOffset) ->
+                                    // Each stream draws an arc tracing around the circle
+                                    // The arc length shrinks as it completes its orbit
+                                    val currentAngle = startAngleOffset + (p * 360f * 1.5f) // Spins 1.5 times
+                                    val sweep = 120f * (1f - p) // Tail gets shorter
+                                    
+                                    drawArc(
+                                        brush = Brush.sweepGradient(
+                                            colors = listOf(Color.Transparent, color, Color.White),
+                                            center = center
+                                        ),
+                                        startAngle = currentAngle,
+                                        sweepAngle = sweep,
+                                        useCenter = false,
+                                        topLeft = Offset(center.x - radius, center.y - radius),
+                                        size = Size(radius * 2, radius * 2),
+                                        style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round)
+                                    )
+                                }
+                            }
                         }
 
                         AnimatedContent(
@@ -1849,63 +1895,56 @@ private fun GardenScreen(state: TodayUiState, tasks: List<TaskEntity>) {
                                 }
                             }
                         ) {
-                            val tileWidth = size.width / 8f
-                            val tileHeight = tileWidth * 0.52f
+                            val tileWidth = size.width / 5f
+                            val tileHeight = tileWidth * 0.5f
                             
                             if (is3DMode) {
-                                // Free Cam Camera Logic
-                                val cameraYaw = Math.toRadians(rotationAngle.toDouble())
-                                // Pitch affects both the Y squash and vertical offset
-                                val pitchDeg = (tiltAngle * 90f).coerceIn(25f, 85f)
+                                // Orthographic Free Cam Camera Logic
+                                // Default isometric is approx Yaw=45, Pitch=35
+                                val cameraYaw = Math.toRadians((rotationAngle + 45f).toDouble())
+                                val pitchDeg = (tiltAngle * 90f).coerceIn(20f, 85f)
                                 val cameraPitch = Math.toRadians(pitchDeg.toDouble())
+                                
                                 val sinYaw = kotlin.math.sin(cameraYaw).toFloat()
                                 val cosYaw = kotlin.math.cos(cameraYaw).toFloat()
                                 val sinPitch = kotlin.math.sin(cameraPitch).toFloat()
                                 val cosPitch = kotlin.math.cos(cameraPitch).toFloat()
                                 
-                                // Push the camera back so we don't zoom in crazy far
-                                val cameraDistance = 45f
+                                val centerX = size.width / 2f
+                                val centerY = size.height / 2f + 40f
+                                
+                                // Scale down slightly to fit the grid
+                                val globalScale = 0.65f
+                                val localW = tileWidth * globalScale
 
                                 // Convert days into 3D sorted array
                                 val renderPass = pastDays.mapIndexed { index, dayDate ->
                                     val row = index / 7
                                     val col = index % 7
                                     
-                                    // Base width of one tile in isometric space
-                                    val localW = tileWidth * 0.95f
-                                    
                                     // Local 3D Coordinates (Centered around the grid)
-                                    // Shift so col=3, row=1.5 is the exact origin (0,0)
                                     val lx = (col - 3f) * localW
                                     val lz = (row - 1.5f) * localW
                                     
-                                    // 1. Apply Yaw Rotation (Orbit around Y axis)
+                                    // Orbit around Y axis (Yaw)
                                     val rx = lx * cosYaw - lz * sinYaw
                                     val rz = lx * sinYaw + lz * cosYaw
                                     
-                                    // 2. Apply Camera Distance & Perspective Projection
-                                    // Moving the object away from the camera in the Z axis
-                                    val depth = cameraDistance + rz * cosPitch
-                                    val scale = cameraDistance / depth.coerceAtLeast(1f)
+                                    // Pitch around X axis
+                                    val ry = 0f * cosPitch - rz * sinPitch
+                                    val depth = 0f * sinPitch + rz * cosPitch
                                     
-                                    // 3. Screen coordinates projection
-                                    val screenX = size.width / 2f + rx * scale
+                                    // Orthographic screen coordinates
+                                    val screenX = centerX + rx
+                                    val screenY = centerY - ry
                                     
-                                    // 4. Calculate Y offset using pitch
-                                    // Multiply by sinPitch to squash the grid vertically when viewed edge-on
-                                    val projectedY = (rz * sinPitch) * scale
-                                    // Shift the entire grid slightly down to center it visually
-                                    val screenY = size.height / 2f + projectedY + 20f * scale
-                                    
-                                    Triple(index, depth, Triple(screenX, screenY, scale))
-                                }.sortedByDescending { it.second } // Draw furthest first (painters algorithm)
+                                    Triple(index, depth, Pair(screenX, screenY))
+                                }.sortedBy { it.second } // Draw back-to-front
 
                                 renderPass.forEach { (index, _, coords) ->
                                     val dayDate = pastDays[index]
                                     val screenX = coords.first
                                     val screenY = coords.second
-                                    // Ensure the tiles stay reasonably sized
-                                    val scale = coords.third * 1.05f
 
                                     val completedTasks = state.taskActivity[dayDate] ?: 0
                                     val dayRatio = treeRatio(completedTasks, tasks.size.coerceAtLeast(1))
@@ -1917,24 +1956,22 @@ private fun GardenScreen(state: TodayUiState, tasks: List<TaskEntity>) {
                                         else -> Color(0xFF1E293B) // Obsidian/slate dry earth tile
                                     }
                                     
-                                    // Squish the tile height based on camera pitch!
-                                    // If pitch is 90 (top down), height should equal width
-                                    // If pitch is 30 (isometric), height is squashed
-                                    val dynamicTileHeight = tileWidth * sinPitch
+                                    // Dynamically squash the tile based on pitch
+                                    val dynamicTileHeight = localW * sinPitch
 
-                                    // Draw standard isometric tiles mapped to the 3D space
-                                    drawIsoTile(screenX, screenY, tileWidth * scale, dynamicTileHeight * scale, tileColor, isSelected)
+                                    // Draw standard isometric tiles mapped to the orthographic 3D space
+                                    drawIsoTile(screenX, screenY, localW * 1.414f, dynamicTileHeight * 1.414f, tileColor, isSelected)
 
                                     // Draw Low-Poly Voxel 3D Tree or Stone
                                     if (dayRatio > 0f) {
-                                        drawLowPoly3DTree(screenX, screenY, scale * 0.8f, dayRatio, timeFloat)
+                                        drawLowPoly3DTree(screenX, screenY, globalScale * 0.9f, dayRatio, timeFloat)
                                     } else {
-                                        drawLowPolyRock(screenX, screenY - 2f * scale, scale * 0.8f)
+                                        drawLowPolyRock(screenX, screenY - 2f * globalScale, globalScale * 0.9f)
                                     }
                                 }
                             } else {
                                 val startX = size.width / 2f
-                                val startY = 60.dp.toPx()
+                                val startY = 80.dp.toPx()
                                 
                                 pastDays.forEachIndexed { index, dayDate ->
                                     val row = index / 7
