@@ -1855,37 +1855,47 @@ private fun GardenScreen(state: TodayUiState, tasks: List<TaskEntity>) {
                             if (is3DMode) {
                                 // Free Cam Camera Logic
                                 val cameraYaw = Math.toRadians(rotationAngle.toDouble())
-                                // Keep pitch relatively shallow and locked between 0.35 and 0.8
-                                val cameraPitch = Math.toRadians((tiltAngle * 90f).coerceIn(30f, 75f).toDouble())
+                                // Pitch affects both the Y squash and vertical offset
+                                val pitchDeg = (tiltAngle * 90f).coerceIn(25f, 85f)
+                                val cameraPitch = Math.toRadians(pitchDeg.toDouble())
                                 val sinYaw = kotlin.math.sin(cameraYaw).toFloat()
                                 val cosYaw = kotlin.math.cos(cameraYaw).toFloat()
                                 val sinPitch = kotlin.math.sin(cameraPitch).toFloat()
                                 val cosPitch = kotlin.math.cos(cameraPitch).toFloat()
                                 
-                                val cameraDistance = 24f
+                                // Push the camera back so we don't zoom in crazy far
+                                val cameraDistance = 45f
 
                                 // Convert days into 3D sorted array
                                 val renderPass = pastDays.mapIndexed { index, dayDate ->
                                     val row = index / 7
                                     val col = index % 7
                                     
-                                    // Local 3D Coordinates (Centered at col=3, row=1.5)
-                                    // Scale coordinates up so they fill the screen
-                                    val lx = (col - 3f) * tileWidth * 1.6f
-                                    val lz = (row - 1.5f) * tileWidth * 1.6f
+                                    // Base width of one tile in isometric space
+                                    val localW = tileWidth * 0.95f
                                     
-                                    // Apply Yaw Rotation (orbit)
+                                    // Local 3D Coordinates (Centered around the grid)
+                                    // Shift so col=3, row=1.5 is the exact origin (0,0)
+                                    val lx = (col - 3f) * localW
+                                    val lz = (row - 1.5f) * localW
+                                    
+                                    // 1. Apply Yaw Rotation (Orbit around Y axis)
                                     val rx = lx * cosYaw - lz * sinYaw
                                     val rz = lx * sinYaw + lz * cosYaw
                                     
-                                    // Projected depth/scale
+                                    // 2. Apply Camera Distance & Perspective Projection
+                                    // Moving the object away from the camera in the Z axis
                                     val depth = cameraDistance + rz * cosPitch
                                     val scale = cameraDistance / depth.coerceAtLeast(1f)
                                     
-                                    // Screen X/Y
+                                    // 3. Screen coordinates projection
                                     val screenX = size.width / 2f + rx * scale
-                                    // Center vertically and adjust for pitch
-                                    val screenY = size.height / 2f + (rz * sinPitch) * scale - 40f * scale
+                                    
+                                    // 4. Calculate Y offset using pitch
+                                    // Multiply by sinPitch to squash the grid vertically when viewed edge-on
+                                    val projectedY = (rz * sinPitch) * scale
+                                    // Shift the entire grid slightly down to center it visually
+                                    val screenY = size.height / 2f + projectedY + 20f * scale
                                     
                                     Triple(index, depth, Triple(screenX, screenY, scale))
                                 }.sortedByDescending { it.second } // Draw furthest first (painters algorithm)
@@ -1894,8 +1904,8 @@ private fun GardenScreen(state: TodayUiState, tasks: List<TaskEntity>) {
                                     val dayDate = pastDays[index]
                                     val screenX = coords.first
                                     val screenY = coords.second
-                                    // Make everything slightly larger in movable mode to match static size
-                                    val scale = coords.third * 1.3f
+                                    // Ensure the tiles stay reasonably sized
+                                    val scale = coords.third * 1.05f
 
                                     val completedTasks = state.taskActivity[dayDate] ?: 0
                                     val dayRatio = treeRatio(completedTasks, tasks.size.coerceAtLeast(1))
@@ -1906,15 +1916,20 @@ private fun GardenScreen(state: TodayUiState, tasks: List<TaskEntity>) {
                                         completedTasks > 0 -> Color(0xFF4ADE80) // Lush green grass
                                         else -> Color(0xFF1E293B) // Obsidian/slate dry earth tile
                                     }
+                                    
+                                    // Squish the tile height based on camera pitch!
+                                    // If pitch is 90 (top down), height should equal width
+                                    // If pitch is 30 (isometric), height is squashed
+                                    val dynamicTileHeight = tileWidth * sinPitch
 
-                                    // Instead of floating islands, draw standard isometric tiles mapped to the 3D space
-                                    drawIsoTile(screenX, screenY, tileWidth * scale, tileHeight * scale, tileColor, isSelected)
+                                    // Draw standard isometric tiles mapped to the 3D space
+                                    drawIsoTile(screenX, screenY, tileWidth * scale, dynamicTileHeight * scale, tileColor, isSelected)
 
                                     // Draw Low-Poly Voxel 3D Tree or Stone
                                     if (dayRatio > 0f) {
-                                        drawLowPoly3DTree(screenX, screenY, scale * 0.9f, dayRatio, timeFloat)
+                                        drawLowPoly3DTree(screenX, screenY, scale * 0.8f, dayRatio, timeFloat)
                                     } else {
-                                        drawLowPolyRock(screenX, screenY - 2f * scale, scale * 0.9f)
+                                        drawLowPolyRock(screenX, screenY - 2f * scale, scale * 0.8f)
                                     }
                                 }
                             } else {
