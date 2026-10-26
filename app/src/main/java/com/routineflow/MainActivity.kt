@@ -499,8 +499,8 @@ private fun RoutineFlowApp(
                         modifier = Modifier
                             .size(54.dp)
                             .graphicsLayer {
-                                scaleX = animatedClickPulse
-                                scaleY = animatedClickPulse
+                                scaleX = if (animatedClickPulse < 1.5f) animatedClickPulse else 1f
+                                scaleY = if (animatedClickPulse < 1.5f) animatedClickPulse else 1f
                             }
                             .shadow(
                                 elevation = 12.dp,
@@ -543,8 +543,10 @@ private fun RoutineFlowApp(
                                 indication = null
                             ) {
                                 haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                // Trigger playful bouncy scale pulse
+                                // Trigger playful bouncy scale pulse and sparkle
                                 addAnimationScope.launch {
+                                    iconClickPulse = 2f // Trigger sparkle
+                                    kotlinx.coroutines.delay(100)
                                     iconClickPulse = 0.75f // Compress in
                                     kotlinx.coroutines.delay(100)
                                     iconClickPulse = 1f    // Spring out
@@ -552,6 +554,14 @@ private fun RoutineFlowApp(
                             },
                         contentAlignment = Alignment.Center
                     ) {
+                        // Click Sparkle Burst overlay
+                        if (iconClickPulse > 1.5f) {
+                            CompletionSparkle(
+                                active = true,
+                                modifier = Modifier.fillMaxSize().graphicsLayer { scaleX = 1.5f; scaleY = 1.5f }
+                            )
+                        }
+
                         AnimatedContent(
                             targetState = selectedTab,
                             transitionSpec = {
@@ -1859,8 +1869,8 @@ private fun GardenScreen(state: TodayUiState, tasks: List<TaskEntity>) {
                                     val col = index % 7
                                     
                                     // Local 3D Coordinates (Centered at col=3, row=1.5)
-                                    val lx = (col - 3f) * tileWidth * 1.05f
-                                    val lz = (row - 1.5f) * tileWidth * 1.05f
+                                    val lx = (col - 3f) * tileWidth * 1.55f
+                                    val lz = (row - 1.5f) * tileWidth * 1.55f
                                     
                                     // Apply Yaw Rotation (orbit)
                                     val rx = lx * cosYaw - lz * sinYaw
@@ -1872,7 +1882,7 @@ private fun GardenScreen(state: TodayUiState, tasks: List<TaskEntity>) {
                                     
                                     // Screen X/Y
                                     val screenX = size.width / 2f + rx * scale
-                                    val screenY = size.height / 2f + (rz * sinPitch) * scale
+                                    val screenY = size.height / 2f + (rz * sinPitch) * scale - 120f * (1f - tiltAngle) * scale
                                     
                                     Triple(index, depth, Triple(screenX, screenY, scale))
                                 }.sortedByDescending { it.second } // Draw furthest first (painters algorithm)
