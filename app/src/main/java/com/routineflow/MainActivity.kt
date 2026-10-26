@@ -33,6 +33,7 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -72,6 +73,7 @@ import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Checklist
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Event
@@ -336,6 +338,8 @@ private fun RoutineFlowApp(
     val tasks by viewModel.tasks.collectAsStateWithLifecycle()
     var showAdd by remember { mutableStateOf(false) }
     var showAddTask by remember { mutableStateOf(false) }
+    var showSettingsDialog by remember { mutableStateOf(false) }
+    var avatarClickCount by remember { mutableIntStateOf(0) }
     var addWaterActive by remember { mutableStateOf(false) }
     var closingAddTask by remember { mutableStateOf(false) }
     var selectedTab by remember { mutableIntStateOf(0) }
@@ -496,7 +500,7 @@ private fun RoutineFlowApp(
                         }
                     }
 
-                    // Click Animation States
+                    // Click Animation & Progression States
                     var iconClickPulse by remember { mutableFloatStateOf(1f) }
                     val animatedClickPulse by animateFloatAsState(
                         targetValue = iconClickPulse,
@@ -559,47 +563,52 @@ private fun RoutineFlowApp(
                                 indication = null
                             ) {
                                 haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                // Trigger playful bouncy scale pulse and sparkle
+                                if (avatarClickCount < 5) {
+                                    avatarClickCount++
+                                }
+                                if (avatarClickCount == 5) {
+                                    showSettingsDialog = true
+                                }
                                 addAnimationScope.launch {
-                                    // Set to 2f temporarily to flag the animation to start
                                     iconClickPulse = 2f 
                                     kotlinx.coroutines.delay(50)
-                                    iconClickPulse = 0.7f // Compress in
+                                    iconClickPulse = 0.7f
                                     kotlinx.coroutines.delay(120)
-                                    iconClickPulse = 1f   // Spring out
+                                    iconClickPulse = 1f
                                 }
                             },
                         contentAlignment = Alignment.Center
                     ) {
-                        // Progressive Unlocking Radial Orbit Ring (Strict 5-Dot Clean Design)
-                        var unlockedCount by remember { mutableIntStateOf(0) }
+                        // Progressive Unlocking Radial Orbit Ring
+                        val targetUnlocked = when (avatarClickCount) {
+                            0 -> 0
+                            1 -> 2
+                            2 -> 4
+                            else -> 5
+                        }
+                        
                         val arcRevealAnim = remember { androidx.compose.animation.core.Animatable(0f) }
                         val pulseAnim = remember { androidx.compose.animation.core.Animatable(0f) }
                         
-                        androidx.compose.runtime.LaunchedEffect(iconClickPulse) {
-                            if (iconClickPulse >= 2f) {
-                                if (unlockedCount < 5) {
-                                    unlockedCount++
-                                    arcRevealAnim.snapTo(0f)
-                                    arcRevealAnim.animateTo(
-                                        1f,
-                                        animationSpec = spring(
-                                            dampingRatio = 0.7f,
-                                            stiffness = 380f
-                                        )
+                        androidx.compose.runtime.LaunchedEffect(avatarClickCount) {
+                            arcRevealAnim.snapTo(0f)
+                            arcRevealAnim.animateTo(
+                                1f,
+                                animationSpec = spring(
+                                    dampingRatio = 0.7f,
+                                    stiffness = 380f
+                                )
+                            )
+                            if (avatarClickCount >= 3) {
+                                pulseAnim.snapTo(0f)
+                                pulseAnim.animateTo(
+                                    1f,
+                                    animationSpec = androidx.compose.animation.core.tween(
+                                        durationMillis = 500,
+                                        easing = androidx.compose.animation.core.FastOutSlowInEasing
                                     )
-                                } else {
-                                    // Ring fully complete (5 dots) -> rich node energy pulse & spark fan
-                                    pulseAnim.snapTo(0f)
-                                    pulseAnim.animateTo(
-                                        1f,
-                                        animationSpec = androidx.compose.animation.core.tween(
-                                            durationMillis = 600,
-                                            easing = androidx.compose.animation.core.FastOutSlowInEasing
-                                        )
-                                    )
-                                    pulseAnim.snapTo(0f)
-                                }
+                                )
+                                pulseAnim.snapTo(0f)
                             }
                         }
 
@@ -616,39 +625,26 @@ private fun RoutineFlowApp(
                                 style = Stroke(width = 1.5.dp.toPx())
                             )
 
-                            // Subtle expanding shockwave ring on repeat click when 5 dots present
-                            if (pPulse > 0f && unlockedCount >= 5) {
-                                val shockwaveRadius = radius + pPulse * 16.dp.toPx()
-                                val shockwaveAlpha = (1f - pPulse) * 0.5f
-                                drawCircle(
-                                    color = Color.White.copy(alpha = shockwaveAlpha),
-                                    radius = shockwaveRadius,
-                                    center = center,
-                                    style = Stroke(width = 1.5.dp.toPx() * (1f - pPulse * 0.5f))
-                                )
-                            }
-
                             val streams = listOf(
-                                Pair(Color(0xFF38BDF8), 0f),       // 1st click: Sky Cyan
-                                Pair(Color(0xFF4ADE80), 72f),      // 2nd click: Emerald Green
-                                Pair(Color(0xFF818CF8), 144f),     // 3rd click: Indigo
-                                Pair(Color(0xFFFBBF24), 216f),     // 4th click: Amber
-                                Pair(Color(0xFFF472B6), 288f)      // 5th click: Neon Pink
+                                Pair(Color(0xFF38BDF8), 0f),       // Sky Cyan
+                                Pair(Color(0xFF4ADE80), 72f),      // Emerald Green
+                                Pair(Color(0xFF818CF8), 144f),     // Indigo
+                                Pair(Color(0xFFFBBF24), 216f),     // Amber
+                                Pair(Color(0xFFF472B6), 288f)      // Neon Pink
                             )
                             
-                            if (unlockedCount > 0) {
-                                val activeStreams = streams.take(unlockedCount)
+                            if (targetUnlocked > 0) {
+                                val activeStreams = streams.take(targetUnlocked)
                                 
                                 activeStreams.forEachIndexed { index, (color, startAngleOffset) ->
                                     val targetSweep = 50f
-                                    val currentSweep = if (index == unlockedCount - 1 && unlockedCount < 5) {
+                                    val currentSweep = if (index >= targetUnlocked - 2) {
                                         targetSweep * arcRevealAnim.value
                                     } else {
                                         targetSweep
                                     }
                                     
                                     if (currentSweep > 0.5f) {
-                                        // Clean colored arc segment
                                         drawArc(
                                             color = color,
                                             startAngle = startAngleOffset,
@@ -659,12 +655,10 @@ private fun RoutineFlowApp(
                                             style = Stroke(width = 3.5.dp.toPx(), cap = StrokeCap.Round)
                                         )
 
-                                        // Exactly 1 glowing node dot at the head of this arc
                                         val headAngleRad = Math.toRadians((startAngleOffset + currentSweep).toDouble())
                                         val px = center.x + kotlin.math.cos(headAngleRad).toFloat() * radius
                                         val py = center.y + kotlin.math.sin(headAngleRad).toFloat() * radius
                                         
-                                        // Dynamic node aura glow pulse on click
                                         val pulseExpansion = if (pPulse > 0f) kotlin.math.sin(pPulse * Math.PI).toFloat() * 4.5.dp.toPx() else 0f
                                         val haloRadius = 4.5.dp.toPx() + pulseExpansion
                                         val coreRadius = 2.0.dp.toPx() + (pulseExpansion * 0.35f)
@@ -674,60 +668,36 @@ private fun RoutineFlowApp(
                                             radius = haloRadius,
                                             center = Offset(px, py)
                                         )
-                                        // Pure white inner core dot
                                         drawCircle(
                                             color = Color.White,
                                             radius = coreRadius,
                                             center = Offset(px, py)
                                         )
-
-                                        // On repeat clicks when 5 dots present: 3 directional sparks shooting outward from each node dot
-                                        if (pPulse > 0f && unlockedCount >= 5) {
-                                            val sparkOffsets = listOf(-0.25, 0.0, 0.25) // Fan angle spread
-                                            val sparkAlpha = (1f - pPulse) * 0.85f
-                                            
-                                            sparkOffsets.forEachIndexed { sIdx, angleOffset ->
-                                                val sparkAngle = headAngleRad + angleOffset
-                                                val sparkDist = radius + pPulse * (14.dp.toPx() + sIdx * 3.dp.toPx())
-                                                val sx = center.x + kotlin.math.cos(sparkAngle).toFloat() * sparkDist
-                                                val sy = center.y + kotlin.math.sin(sparkAngle).toFloat() * sparkDist
-                                                val sparkSize = (2.2.dp.toPx() * (1f - pPulse * 0.4f)).coerceAtLeast(1f)
-                                                
-                                                // Outer spark glow
-                                                drawCircle(
-                                                    color = color.copy(alpha = sparkAlpha * 0.7f),
-                                                    radius = sparkSize * 1.5f,
-                                                    center = Offset(sx, sy)
-                                                )
-                                                // Bright spark center
-                                                drawCircle(
-                                                    color = Color.White.copy(alpha = sparkAlpha),
-                                                    radius = sparkSize * 0.7f,
-                                                    center = Offset(sx, sy)
-                                                )
-                                            }
-                                        }
                                     }
                                 }
                             }
                         }
 
                         AnimatedContent(
-                            targetState = selectedTab,
+                            targetState = if (avatarClickCount >= 4) -1 else selectedTab,
                             transitionSpec = {
                                 (fadeIn(animationSpec = androidx.compose.animation.core.tween(300)) + scaleIn(initialScale = 0.8f)) togetherWith 
                                 (fadeOut(animationSpec = androidx.compose.animation.core.tween(200)) + scaleOut(targetScale = 0.8f))
                             }, label = "header_icon"
                         ) { tab ->
                             Icon(
-                                imageVector = when(tab) {
-                                    0 -> Icons.Rounded.Today
-                                    1 -> Icons.Rounded.Checklist
-                                    2 -> Icons.Rounded.Event
-                                    3 -> Icons.Rounded.LocalFlorist
-                                    4 -> Icons.Rounded.Insights
-                                    5 -> Icons.Rounded.SelfImprovement
-                                    else -> Icons.Rounded.Settings
+                                imageVector = if (tab == -1) {
+                                    Icons.Rounded.Settings
+                                } else {
+                                    when(tab) {
+                                        0 -> Icons.Rounded.Today
+                                        1 -> Icons.Rounded.Checklist
+                                        2 -> Icons.Rounded.Event
+                                        3 -> Icons.Rounded.LocalFlorist
+                                        4 -> Icons.Rounded.Insights
+                                        5 -> Icons.Rounded.SelfImprovement
+                                        else -> Icons.Rounded.Settings
+                                    }
                                 },
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.primary,
@@ -736,7 +706,7 @@ private fun RoutineFlowApp(
                                     .graphicsLayer { rotationZ = animatedIconRotation }
                             )
                         }
-                        
+
                         if (selectedTab == 0 && tasks.any { !it.completed }) {
                             val infiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition()
                             // Expand the duration so it rests at 1.0f for most of the 4-second cycle
@@ -989,6 +959,64 @@ private fun RoutineFlowApp(
             }
         )
     }
+    if (showSettingsDialog) {
+        Dialog(
+            onDismissRequest = {
+                showSettingsDialog = false
+                avatarClickCount = 0
+            },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.65f))
+                    .clickable {
+                        showSettingsDialog = false
+                        avatarClickCount = 0
+                    }
+                    .padding(horizontal = 16.dp, vertical = 28.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(28.dp),
+                    color = MaterialTheme.colorScheme.surface,
+                    tonalElevation = 6.dp,
+                    shadowElevation = 16.dp,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .fillMaxHeight(0.88f)
+                        .clickable(enabled = false) {}
+                ) {
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        SettingsScreen(
+                            darkMode = darkMode,
+                            onThemeToggle = onThemeToggle,
+                            reducedMotion = reducedMotion,
+                            onReducedMotionChange = onReducedMotionChange,
+                            appLockEnabled = appLockEnabled,
+                            onAppLockChange = onAppLockChange
+                        )
+                        IconButton(
+                            onClick = {
+                                showSettingsDialog = false
+                                avatarClickCount = 0
+                            },
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(12.dp)
+                        ) {
+                            Icon(
+                                Icons.Rounded.Close,
+                                contentDescription = "Close Settings",
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 @Composable
@@ -1183,15 +1211,14 @@ private fun RoutineFlowDockClearPdf(
     onTabSelected: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val labels = listOf("Today", "Tasks", "Planner", "Garden", "Progress", "Focus", "Settings")
+    val labels = listOf("Today", "Tasks", "Planner", "Garden", "Progress", "Focus")
     val icons = listOf(
         Icons.Rounded.Today,
         Icons.Rounded.Checklist,
         Icons.Rounded.Event,
         Icons.Rounded.LocalFlorist,
         Icons.Rounded.Insights,
-        Icons.Rounded.SelfImprovement,
-        Icons.Rounded.Settings
+        Icons.Rounded.SelfImprovement
     )
     val density = LocalDensity.current
     val haptics = LocalHapticFeedback.current
@@ -1968,6 +1995,7 @@ private fun GardenScreen(state: TodayUiState, tasks: List<TaskEntity>) {
     var is3DMode by remember { mutableStateOf(false) }
     var tiltAngle by remember { mutableFloatStateOf(0.45f) }
     var rotationAngle by remember { mutableFloatStateOf(0f) }
+    var zoomScale by remember { mutableFloatStateOf(1f) }
     var selectedDayIndex by remember { mutableIntStateOf(27) }
     val today = LocalDate.now()
     val pastDays = remember(today) { (27 downTo 0).map { today.minusDays(it.toLong()) } }
@@ -2066,84 +2094,93 @@ private fun GardenScreen(state: TodayUiState, tasks: List<TaskEntity>) {
                     Canvas(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .pointerInput(is3DMode, rotationAngle, tiltAngle) {
-                                    if (is3DMode) {
-                                        detectDragGestures { change, dragAmount ->
-                                            change.consume()
-                                            rotationAngle = (rotationAngle + dragAmount.x * 0.5f) % 360f
-                                            tiltAngle = (tiltAngle - dragAmount.y / size.height * 1.5f).coerceIn(0.1f, 1.0f)
+                                .pointerInput(is3DMode) {
+                                    detectTransformGestures { _, pan, zoom, _ ->
+                                        zoomScale = (zoomScale * zoom).coerceIn(0.6f, 2.5f)
+                                        if (is3DMode) {
+                                            rotationAngle = (rotationAngle + pan.x * 0.35f) % 360f
+                                            tiltAngle = (tiltAngle - pan.y / size.height * 1.2f).coerceIn(0.1f, 1.0f)
                                         }
                                     }
                                 }
-                                .pointerInput(is3DMode, rotationAngle, tiltAngle, pastDays) {
-                                    detectTapGestures { tapOffset ->
-                                        val canvasWidth = size.width.toFloat()
-                                        val canvasHeight = size.height.toFloat()
-                                        val tileWidth = canvasWidth / 5f
-                                        var closestIndex = -1
-                                        var minDistanceSq = Float.MAX_VALUE
+                                .pointerInput(is3DMode, pastDays) {
+                                    detectTapGestures(
+                                        onDoubleTap = {
+                                            zoomScale = 1f
+                                            if (is3DMode) {
+                                                rotationAngle = 0f
+                                                tiltAngle = 0.45f
+                                            }
+                                        },
+                                        onTap = { tapOffset ->
+                                            val canvasWidth = size.width.toFloat()
+                                            val canvasHeight = size.height.toFloat()
+                                            val tileWidth = canvasWidth / 5f
+                                            var closestIndex = -1
+                                            var minDistanceSq = Float.MAX_VALUE
 
-                                        if (is3DMode) {
-                                            val cameraYaw = Math.toRadians((rotationAngle + 45f).toDouble())
-                                            val pitchDeg = (tiltAngle * 90f).coerceIn(20f, 85f)
-                                            val cameraPitch = Math.toRadians(pitchDeg.toDouble())
-                                            val sinYaw = kotlin.math.sin(cameraYaw).toFloat()
-                                            val cosYaw = kotlin.math.cos(cameraYaw).toFloat()
-                                            val sinPitch = kotlin.math.sin(cameraPitch).toFloat()
-                                            val cosPitch = kotlin.math.cos(cameraPitch).toFloat()
-                                            val centerX = canvasWidth / 2f
-                                            val centerY = canvasHeight / 2f + 40f
-                                            val globalScale = 0.85f 
-                                            val localW = tileWidth * globalScale
+                                            if (is3DMode) {
+                                                val cameraYaw = Math.toRadians((rotationAngle + 45f).toDouble())
+                                                val pitchDeg = (tiltAngle * 90f).coerceIn(20f, 85f)
+                                                val cameraPitch = Math.toRadians(pitchDeg.toDouble())
+                                                val sinYaw = kotlin.math.sin(cameraYaw).toFloat()
+                                                val cosYaw = kotlin.math.cos(cameraYaw).toFloat()
+                                                val sinPitch = kotlin.math.sin(cameraPitch).toFloat()
+                                                val cosPitch = kotlin.math.cos(cameraPitch).toFloat()
+                                                val centerX = canvasWidth / 2f
+                                                val centerY = canvasHeight / 2f + 40f
+                                                val globalScale = 0.85f * zoomScale
+                                                val localW = tileWidth * globalScale
 
-                                            pastDays.forEachIndexed { index, _ ->
-                                                val row = index / 7
-                                                val col = index % 7
-                                                val lx = (col - 3f) * localW
-                                                val lz = (row - 1.5f) * localW
-                                                val rx = lx * cosYaw - lz * sinYaw
-                                                val rz = lx * sinYaw + lz * cosYaw
-                                                val ry = 0f * cosPitch - rz * sinPitch
-                                                val screenX = centerX + rx
-                                                val screenY = centerY - ry
+                                                pastDays.forEachIndexed { index, _ ->
+                                                    val row = index / 7
+                                                    val col = index % 7
+                                                    val lx = (col - 3f) * localW
+                                                    val lz = (row - 1.5f) * localW
+                                                    val rx = lx * cosYaw - lz * sinYaw
+                                                    val rz = lx * sinYaw + lz * cosYaw
+                                                    val ry = 0f * cosPitch - rz * sinPitch
+                                                    val screenX = centerX + rx
+                                                    val screenY = centerY - ry
 
-                                                val dx = tapOffset.x - screenX
-                                                val dy = tapOffset.y - screenY
-                                                val distSq = dx * dx + dy * dy
-                                                if (distSq < minDistanceSq) {
-                                                    minDistanceSq = distSq
-                                                    closestIndex = index
+                                                    val dx = tapOffset.x - screenX
+                                                    val dy = tapOffset.y - screenY
+                                                    val distSq = dx * dx + dy * dy
+                                                    if (distSq < minDistanceSq) {
+                                                        minDistanceSq = distSq
+                                                        closestIndex = index
+                                                    }
+                                                }
+                                            } else {
+                                                val startX = canvasWidth / 2f
+                                                val startY = canvasHeight / 2f + 20.dp.toPx()
+                                                val staticScale = 0.95f * zoomScale
+                                                val tileHeight = tileWidth * 0.5f
+
+                                                pastDays.forEachIndexed { index, _ ->
+                                                    val row = index / 7
+                                                    val col = index % 7
+                                                    val centeredColOffset = col - 3f
+                                                    val centeredRowOffset = row - 1.5f
+                                                    val isoX = startX + (centeredColOffset - centeredRowOffset) * (tileWidth * staticScale * 0.48f)
+                                                    val isoY = startY + (centeredColOffset + centeredRowOffset) * (tileHeight * staticScale * 0.42f)
+
+                                                    val dx = tapOffset.x - isoX
+                                                    val dy = tapOffset.y - isoY
+                                                    val distSq = dx * dx + dy * dy
+                                                    if (distSq < minDistanceSq) {
+                                                        minDistanceSq = distSq
+                                                        closestIndex = index
+                                                    }
                                                 }
                                             }
-                                        } else {
-                                            val startX = canvasWidth / 2f
-                                            val startY = canvasHeight / 2f + 20.dp.toPx()
-                                            val staticScale = 0.95f
-                                            val tileHeight = tileWidth * 0.5f
 
-                                            pastDays.forEachIndexed { index, _ ->
-                                                val row = index / 7
-                                                val col = index % 7
-                                                val centeredColOffset = col - 3f
-                                                val centeredRowOffset = row - 1.5f
-                                                val isoX = startX + (centeredColOffset - centeredRowOffset) * (tileWidth * staticScale * 0.48f)
-                                                val isoY = startY + (centeredColOffset + centeredRowOffset) * (tileHeight * staticScale * 0.42f)
-
-                                                val dx = tapOffset.x - isoX
-                                                val dy = tapOffset.y - isoY
-                                                val distSq = dx * dx + dy * dy
-                                                if (distSq < minDistanceSq) {
-                                                    minDistanceSq = distSq
-                                                    closestIndex = index
-                                                }
+                                            if (closestIndex in pastDays.indices) {
+                                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                selectedDayIndex = closestIndex
                                             }
                                         }
-
-                                        if (closestIndex in pastDays.indices) {
-                                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                            selectedDayIndex = closestIndex
-                                        }
-                                    }
+                                    )
                                 }
                         ) {
                             val tileWidth = size.width / 5f
@@ -2151,7 +2188,6 @@ private fun GardenScreen(state: TodayUiState, tasks: List<TaskEntity>) {
                             
                             if (is3DMode) {
                                 // Orthographic Free Cam Camera Logic
-                                // Default isometric is approx Yaw=45, Pitch=35
                                 val cameraYaw = Math.toRadians((rotationAngle + 45f).toDouble())
                                 val pitchDeg = (tiltAngle * 90f).coerceIn(20f, 85f)
                                 val cameraPitch = Math.toRadians(pitchDeg.toDouble())
@@ -2164,9 +2200,7 @@ private fun GardenScreen(state: TodayUiState, tasks: List<TaskEntity>) {
                                 val centerX = size.width / 2f
                                 val centerY = size.height / 2f + 40f
                                 
-                                // Scale down slightly to fit the grid
-                                // The new baseline scale to match the static grid's apparent size
-                                val globalScale = 0.85f 
+                                val globalScale = 0.85f * zoomScale
                                 val localW = tileWidth * globalScale
 
                                 // Convert days into 3D sorted array
@@ -2174,24 +2208,20 @@ private fun GardenScreen(state: TodayUiState, tasks: List<TaskEntity>) {
                                     val row = index / 7
                                     val col = index % 7
                                     
-                                    // Local 3D Coordinates (Centered around the grid)
                                     val lx = (col - 3f) * localW
                                     val lz = (row - 1.5f) * localW
                                     
-                                    // Orbit around Y axis (Yaw)
                                     val rx = lx * cosYaw - lz * sinYaw
                                     val rz = lx * sinYaw + lz * cosYaw
                                     
-                                    // Pitch around X axis
                                     val ry = 0f * cosPitch - rz * sinPitch
                                     val depth = 0f * sinPitch + rz * cosPitch
                                     
-                                    // Orthographic screen coordinates
                                     val screenX = centerX + rx
                                     val screenY = centerY - ry
                                     
                                     Triple(index, depth, Pair(screenX, screenY))
-                                }.sortedBy { it.second } // Draw back-to-front
+                                }.sortedBy { it.second }
 
                                 renderPass.forEach { (index, _, coords) ->
                                     val dayDate = pastDays[index]
@@ -2204,17 +2234,14 @@ private fun GardenScreen(state: TodayUiState, tasks: List<TaskEntity>) {
                                     
                                     val tileColor = when {
                                         isSelected -> primaryColor
-                                        completedTasks > 0 -> Color(0xFF4ADE80) // Lush green grass
-                                        else -> Color(0xFF1E293B) // Obsidian/slate dry earth tile
+                                        completedTasks > 0 -> Color(0xFF4ADE80)
+                                        else -> Color(0xFF1E293B)
                                     }
                                     
-                                    // Dynamically squash the tile based on pitch
                                     val dynamicTileHeight = localW * sinPitch
 
-                                    // Draw standard isometric tiles mapped to the orthographic 3D space
                                     drawIsoTile(screenX, screenY, localW * 1.414f, dynamicTileHeight * 1.414f, tileColor, isSelected)
 
-                                    // Draw Low-Poly Voxel 3D Tree or Stone
                                     if (dayRatio > 0f) {
                                         drawLowPoly3DTree(screenX, screenY, globalScale * 0.9f, dayRatio, timeFloat)
                                     } else {
@@ -2224,7 +2251,7 @@ private fun GardenScreen(state: TodayUiState, tasks: List<TaskEntity>) {
                             } else {
                                 val startX = size.width / 2f
                                 val startY = size.height / 2f + 20.dp.toPx()
-                                val staticScale = 0.95f // Size up to fill the card
+                                val staticScale = 0.95f * zoomScale
                                 
                                 pastDays.forEachIndexed { index, dayDate ->
                                     val row = index / 7
@@ -2232,7 +2259,6 @@ private fun GardenScreen(state: TodayUiState, tasks: List<TaskEntity>) {
                                     val completedTasks = state.taskActivity[dayDate] ?: 0
                                     val dayRatio = treeRatio(completedTasks, tasks.size.coerceAtLeast(1))
 
-                                    // Offset the grid slightly so it doesn't skew off-center
                                     val centeredColOffset = col - 3f
                                     val centeredRowOffset = row - 1.5f
                                     val isoX = startX + (centeredColOffset - centeredRowOffset) * (tileWidth * staticScale * 0.48f)
@@ -2241,14 +2267,12 @@ private fun GardenScreen(state: TodayUiState, tasks: List<TaskEntity>) {
                                     val isSelected = index == selectedDayIndex
                                     val tileColor = when {
                                         isSelected -> primaryColor
-                                        completedTasks > 0 -> Color(0xFF4ADE80) // Lush green grass
-                                        else -> Color(0xFF1E293B) // Obsidian/slate dry earth tile
+                                        completedTasks > 0 -> Color(0xFF4ADE80)
+                                        else -> Color(0xFF1E293B)
                                     }
 
-                                    // 1. Draw 2.5D Isometric Land Tile
                                     drawIsoTile(isoX, isoY, tileWidth * staticScale, tileHeight * staticScale, tileColor, isSelected)
 
-                                    // 2. Draw Low-Poly Voxel 2.5D Tree or Stone
                                     if (dayRatio > 0f) {
                                         drawLowPoly3DTree(isoX, isoY, staticScale * 0.9f, dayRatio, timeFloat)
                                     } else {
@@ -4683,6 +4707,8 @@ private fun AddHabitDialog(
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.6f))
+                .clickable { onDismiss() }
                 .padding(horizontal = 16.dp, vertical = 24.dp),
             contentAlignment = Alignment.BottomCenter
         ) {
@@ -4699,13 +4725,14 @@ private fun AddHabitDialog(
                         scaleY = s
                     }
                     .clip(RoundedCornerShape(LiquidGlassTokens.cardRadius))
-                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.75f))
+                    .background(MaterialTheme.colorScheme.surface)
+                    .clickable(enabled = false) {}
             ) {
                 GlassSurface(
                     modifier = Modifier.fillMaxWidth(),
                     cornerRadius = LiquidGlassTokens.cardRadius,
                     elevation = LiquidGlassTokens.floatingElevation,
-                    tint = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f)
+                    tint = MaterialTheme.colorScheme.surface
                 ) {
                     Column(
                         modifier = Modifier
@@ -4899,6 +4926,8 @@ private fun AddTaskDialog(
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.6f))
+                .clickable { onDismiss() }
                 .padding(horizontal = 16.dp, vertical = 24.dp),
             contentAlignment = Alignment.BottomCenter
         ) {
@@ -4915,14 +4944,15 @@ private fun AddTaskDialog(
                         scaleY = s
                     }
                     .clip(RoundedCornerShape(LiquidGlassTokens.cardRadius))
-                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.75f))
+                    .background(MaterialTheme.colorScheme.surface)
+                    .clickable(enabled = false) {}
             ) {
                 GlassSurface(
                     modifier = Modifier.fillMaxWidth(),
                     cornerRadius = LiquidGlassTokens.cardRadius,
                     elevation = LiquidGlassTokens.floatingElevation,
-                    tint = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f)
-            ) {
+                    tint = MaterialTheme.colorScheme.surface
+                ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
