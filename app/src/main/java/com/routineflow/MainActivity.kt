@@ -588,11 +588,16 @@ private fun RoutineFlowApp(
                                     Pair(Color(0xFFF472B6), 288f)      // Neon Pink
                                 )
                                 
-                                streams.forEach { (color, startAngleOffset) ->
+                                // To limit chaos, we only draw active streams based on click combo
+                                val activeStreams = streams.take(
+                                    (triggerOrbit.intValue.coerceAtLeast(1) * 2 - 1).coerceAtMost(5)
+                                )
+                                
+                                activeStreams.forEach { (color, startAngleOffset) ->
                                     // Each stream draws an arc tracing around the circle
                                     // The arc length shrinks as it completes its orbit
                                     val currentAngle = startAngleOffset + (p * 360f * 1.5f) // Spins 1.5 times
-                                    val sweep = 72f * (1f - p) // Tail gets shorter
+                                    val sweep = 90f * (1f - p) // Tail gets shorter
                                     
                                     drawArc(
                                         brush = Brush.sweepGradient(
@@ -604,7 +609,7 @@ private fun RoutineFlowApp(
                                         useCenter = false,
                                         topLeft = Offset(center.x - radius, center.y - radius),
                                         size = Size(radius * 2, radius * 2),
-                                        style = Stroke(width = 4.dp.toPx(), cap = StrokeCap.Round)
+                                        style = Stroke(width = 3.5.dp.toPx(), cap = StrokeCap.Round)
                                     )
 
                                     // Render glowing particle at the head of the stream
@@ -615,26 +620,27 @@ private fun RoutineFlowApp(
                                         
                                         // Ambient particle glow
                                         drawCircle(
-                                            color = color.copy(alpha = 0.6f * (1f - p)),
-                                            radius = 5.dp.toPx(),
+                                            color = color.copy(alpha = 0.7f * (1f - p)),
+                                            radius = 4.5.dp.toPx(),
                                             center = Offset(px, py)
                                         )
                                         // Intense particle core
                                         drawCircle(
                                             color = Color.White.copy(alpha = 1f - p),
-                                            radius = 2.dp.toPx(),
+                                            radius = 1.5.dp.toPx(),
                                             center = Offset(px, py)
                                         )
                                         
-                                        // Eject a few stray magical sparks outward
-                                        for (s in 1..2) {
-                                            val sparkDist = radius + (p * 15f * s)
-                                            val sparkAngle = headAngleRad + (s * 0.2)
+                                        // Eject magical sparks outward based on click count intensity!
+                                        val sparkCount = (triggerOrbit.intValue - 2).coerceIn(0, 3)
+                                        for (s in 1..sparkCount) {
+                                            val sparkDist = radius + (p * 20f * s)
+                                            val sparkAngle = headAngleRad + (s * 0.15)
                                             val sx = center.x + kotlin.math.cos(sparkAngle).toFloat() * sparkDist
                                             val sy = center.y + kotlin.math.sin(sparkAngle).toFloat() * sparkDist
                                             drawCircle(
-                                                color = color.copy(alpha = (1f - p) * 0.8f),
-                                                radius = 1.dp.toPx(),
+                                                color = color.copy(alpha = (1f - p) * 0.9f),
+                                                radius = 1.2.dp.toPx(),
                                                 center = Offset(sx, sy)
                                             )
                                         }
