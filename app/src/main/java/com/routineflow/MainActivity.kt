@@ -579,25 +579,37 @@ private fun RoutineFlowApp(
                         
                         if (selectedTab == 0 && tasks.any { !it.completed }) {
                             val infiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition()
+                            // Expand the duration so it rests at 1.0f for most of the 4-second cycle
+                            // then briefly flares to 1.4f
                             val pulseScale by infiniteTransition.animateFloat(
                                 initialValue = 1f,
-                                targetValue = 1.4f,
+                                targetValue = 1f, // Default target
                                 animationSpec = androidx.compose.animation.core.infiniteRepeatable(
-                                    animation = androidx.compose.animation.core.tween(1500, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+                                    animation = androidx.compose.animation.core.keyframes {
+                                        durationMillis = 4000
+                                        1f at 0
+                                        1f at 3000 // Stay hidden/small for 3 seconds
+                                        1.4f at 3700 using androidx.compose.animation.core.FastOutSlowInEasing // Pulse out over 700ms
+                                        1f at 4000 // Fade out fully
+                                    },
                                     repeatMode = androidx.compose.animation.core.RepeatMode.Restart
                                 ),
                                 label = "pulse"
                             )
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .graphicsLayer {
-                                        scaleX = pulseScale
-                                        scaleY = pulseScale
-                                        alpha = (1.4f - pulseScale) / 0.4f * 0.5f
-                                    }
-                                    .border(2.dp, MaterialTheme.colorScheme.primary, CircleShape)
-                            )
+                            
+                            // Only draw the border when it's actively pulsing outward
+                            if (pulseScale > 1.01f) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .graphicsLayer {
+                                            scaleX = pulseScale
+                                            scaleY = pulseScale
+                                            alpha = (1.4f - pulseScale) / 0.4f * 0.5f
+                                        }
+                                        .border(2.dp, MaterialTheme.colorScheme.primary, CircleShape)
+                                )
+                            }
                         }
                     }
                 }
@@ -1830,78 +1842,110 @@ private fun GardenScreen(state: TodayUiState, tasks: List<TaskEntity>) {
                             val tileWidth = size.width / 8f
                             val tileHeight = tileWidth * 0.52f
                             
-                            // Free Cam Camera Logic
-                            val cameraYaw = Math.toRadians(rotationAngle.toDouble())
-                            val cameraPitch = Math.toRadians((tiltAngle * 90f).toDouble())
-                            val sinYaw = kotlin.math.sin(cameraYaw).toFloat()
-                            val cosYaw = kotlin.math.cos(cameraYaw).toFloat()
-                            val sinPitch = kotlin.math.sin(cameraPitch).toFloat()
-                            val cosPitch = kotlin.math.cos(cameraPitch).toFloat()
-                            
-                            val cameraDistance = 20f
+                            if (is3DMode) {
+                                // Free Cam Camera Logic
+                                val cameraYaw = Math.toRadians(rotationAngle.toDouble())
+                                val cameraPitch = Math.toRadians((tiltAngle * 90f).toDouble())
+                                val sinYaw = kotlin.math.sin(cameraYaw).toFloat()
+                                val cosYaw = kotlin.math.cos(cameraYaw).toFloat()
+                                val sinPitch = kotlin.math.sin(cameraPitch).toFloat()
+                                val cosPitch = kotlin.math.cos(cameraPitch).toFloat()
+                                
+                                val cameraDistance = 20f
 
-                            // Convert days into 3D sorted array
-                            val renderPass = pastDays.mapIndexed { index, dayDate ->
-                                val row = index / 7
-                                val col = index % 7
-                                
-                                // Local 3D Coordinates (Centered at col=3, row=1.5)
-                                val lx = (col - 3f) * tileWidth * 1.05f
-                                val lz = (row - 1.5f) * tileWidth * 1.05f
-                                
-                                // Apply Yaw Rotation (orbit)
-                                val rx = lx * cosYaw - lz * sinYaw
-                                val rz = lx * sinYaw + lz * cosYaw
-                                
-                                // Projected depth/scale
-                                val depth = cameraDistance + rz * cosPitch
-                                val scale = cameraDistance / depth.coerceAtLeast(0.1f)
-                                
-                                // Screen X/Y
-                                val screenX = size.width / 2f + rx * scale
-                                val screenY = size.height / 2f + (rz * sinPitch) * scale
-                                
-                                Triple(index, depth, Triple(screenX, screenY, scale))
-                            }.sortedByDescending { it.second } // Draw furthest first (painters algorithm)
+                                // Convert days into 3D sorted array
+                                val renderPass = pastDays.mapIndexed { index, dayDate ->
+                                    val row = index / 7
+                                    val col = index % 7
+                                    
+                                    // Local 3D Coordinates (Centered at col=3, row=1.5)
+                                    val lx = (col - 3f) * tileWidth * 1.05f
+                                    val lz = (row - 1.5f) * tileWidth * 1.05f
+                                    
+                                    // Apply Yaw Rotation (orbit)
+                                    val rx = lx * cosYaw - lz * sinYaw
+                                    val rz = lx * sinYaw + lz * cosYaw
+                                    
+                                    // Projected depth/scale
+                                    val depth = cameraDistance + rz * cosPitch
+                                    val scale = cameraDistance / depth.coerceAtLeast(0.1f)
+                                    
+                                    // Screen X/Y
+                                    val screenX = size.width / 2f + rx * scale
+                                    val screenY = size.height / 2f + (rz * sinPitch) * scale
+                                    
+                                    Triple(index, depth, Triple(screenX, screenY, scale))
+                                }.sortedByDescending { it.second } // Draw furthest first (painters algorithm)
 
-                            renderPass.forEach { (index, _, coords) ->
-                                val dayDate = pastDays[index]
-                                val screenX = coords.first
-                                val screenY = coords.second
-                                val scale = coords.third
+                                renderPass.forEach { (index, _, coords) ->
+                                    val dayDate = pastDays[index]
+                                    val screenX = coords.first
+                                    val screenY = coords.second
+                                    val scale = coords.third
 
-                                val completedTasks = state.taskActivity[dayDate] ?: 0
-                                val dayRatio = treeRatio(completedTasks, tasks.size.coerceAtLeast(1))
-                                val isSelected = index == selectedDayIndex
-                                
-                                val tileColor = when {
-                                    isSelected -> primaryColor
-                                    completedTasks > 0 -> Color(0xFF4ADE80) // Lush green grass
-                                    else -> Color(0xFF1E293B) // Obsidian/slate dry earth tile
+                                    val completedTasks = state.taskActivity[dayDate] ?: 0
+                                    val dayRatio = treeRatio(completedTasks, tasks.size.coerceAtLeast(1))
+                                    val isSelected = index == selectedDayIndex
+                                    
+                                    val tileColor = when {
+                                        isSelected -> primaryColor
+                                        completedTasks > 0 -> Color(0xFF4ADE80) // Lush green grass
+                                        else -> Color(0xFF1E293B) // Obsidian/slate dry earth tile
+                                    }
+
+                                    // Custom elliptical floating island base for free cam
+                                    val islandW = tileWidth * scale
+                                    val islandH = islandW * sinPitch
+                                    
+                                    // Dirt Cylinder
+                                    drawOval(
+                                        color = Color(0xFF475569),
+                                        topLeft = Offset(screenX - islandW/2, screenY - islandH/2 + 8f * scale),
+                                        size = Size(islandW, islandH)
+                                    )
+                                    // Grass Top
+                                    drawOval(
+                                        color = tileColor,
+                                        topLeft = Offset(screenX - islandW/2, screenY - islandH/2),
+                                        size = Size(islandW, islandH)
+                                    )
+
+                                    // Draw Low-Poly Voxel 3D Tree or Stone
+                                    if (dayRatio > 0f) {
+                                        drawLowPoly3DTree(screenX, screenY, scale * 0.85f, dayRatio, timeFloat)
+                                    } else {
+                                        drawLowPolyRock(screenX, screenY - 2f * scale, scale * 0.85f)
+                                    }
                                 }
-
-                                // Custom elliptical floating island base for free cam
-                                val islandW = tileWidth * scale
-                                val islandH = islandW * sinPitch
+                            } else {
+                                val startX = size.width / 2f
+                                val startY = 60.dp.toPx()
                                 
-                                // Dirt Cylinder
-                                drawOval(
-                                    color = Color(0xFF475569),
-                                    topLeft = Offset(screenX - islandW/2, screenY - islandH/2 + 8f * scale),
-                                    size = Size(islandW, islandH)
-                                )
-                                // Grass Top
-                                drawOval(
-                                    color = tileColor,
-                                    topLeft = Offset(screenX - islandW/2, screenY - islandH/2),
-                                    size = Size(islandW, islandH)
-                                )
+                                pastDays.forEachIndexed { index, dayDate ->
+                                    val row = index / 7
+                                    val col = index % 7
+                                    val completedTasks = state.taskActivity[dayDate] ?: 0
+                                    val dayRatio = treeRatio(completedTasks, tasks.size.coerceAtLeast(1))
 
-                                // Draw Low-Poly Voxel 3D Tree or Stone
-                                if (dayRatio > 0f) {
-                                    drawLowPoly3DTree(screenX, screenY, scale * 0.85f, dayRatio, timeFloat)
-                                } else {
-                                    drawLowPolyRock(screenX, screenY - 2f * scale, scale * 0.85f)
+                                    val isoX = startX + (col - row) * (tileWidth * 0.48f)
+                                    val isoY = startY + (col + row) * (tileHeight * 0.42f)
+
+                                    val isSelected = index == selectedDayIndex
+                                    val tileColor = when {
+                                        isSelected -> primaryColor
+                                        completedTasks > 0 -> Color(0xFF4ADE80) // Lush green grass
+                                        else -> Color(0xFF1E293B) // Obsidian/slate dry earth tile
+                                    }
+
+                                    // 1. Draw 2.5D Isometric Land Tile
+                                    drawIsoTile(isoX, isoY, tileWidth, tileHeight, tileColor, isSelected)
+
+                                    // 2. Draw Low-Poly Voxel 2.5D Tree or Stone
+                                    if (dayRatio > 0f) {
+                                        drawLowPoly3DTree(isoX, isoY, 0.7f, dayRatio, timeFloat)
+                                    } else {
+                                        drawLowPolyRock(isoX, isoY - 2f * 0.7f, 0.7f)
+                                    }
                                 }
                             }
                         }
