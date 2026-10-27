@@ -83,6 +83,7 @@ import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Event
 import androidx.compose.material.icons.rounded.Insights
 import androidx.compose.material.icons.rounded.LightMode
+import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.LocalFlorist
 import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.Palette
@@ -127,6 +128,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SuggestionChip
+import androidx.compose.material3.SuggestionChipDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -372,9 +374,14 @@ private fun RoutineFlowApp(
     
     fun playCelebrationSound() {
         try {
-            val ringtoneUri = android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_NOTIFICATION)
-            val r = android.media.RingtoneManager.getRingtone(context, ringtoneUri)
-            r.play()
+            val toneGen = android.media.ToneGenerator(android.media.AudioManager.STREAM_MUSIC, 85)
+            toneGen.startTone(android.media.ToneGenerator.TONE_PROP_BEEP, 80)
+            Thread {
+                try {
+                    Thread.sleep(95L)
+                    toneGen.startTone(android.media.ToneGenerator.TONE_PROP_BEEP2, 120)
+                } catch (_: Exception) {}
+            }.start()
         } catch (_: Exception) {}
     }
     
@@ -1018,7 +1025,8 @@ private fun RoutineFlowApp(
                     2 -> GrowthScreen(
                         state = state, 
                         tasks = tasks,
-                        onOpenUnlockDialog = { showTreeUnlockDialog = true }
+                        onOpenUnlockDialog = { showTreeUnlockDialog = true },
+                        onTestAddXp = { viewModel.addTestXp(100) }
                     )
                     3 -> FocusScreen(
                         tasks = tasks,
@@ -1160,50 +1168,131 @@ private fun RoutineFlowApp(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.65f))
+                    .background(Color.Black.copy(alpha = 0.68f))
                     .clickable { showTreeUnlockDialog = false }
-                    .padding(horizontal = 16.dp, vertical = 28.dp),
+                    .padding(horizontal = 16.dp, vertical = 24.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Surface(
                     shape = RoundedCornerShape(28.dp),
                     color = MaterialTheme.colorScheme.surface,
-                    modifier = Modifier.fillMaxWidth().clickable(enabled = false) {}
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .fillMaxHeight(0.88f)
+                        .clickable(enabled = false) {}
                 ) {
                     Column(
-                        modifier = Modifier.padding(24.dp),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(20.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            Text("Unlockable Trees", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                            IconButton(onClick = { showTreeUnlockDialog = false }) {
-                                Icon(Icons.Rounded.Close, contentDescription = "Close")
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                                Text("Tree Arboretum", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, maxLines = 1)
+                                Text("Equip species or auto-upgrade as you level up", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.primaryContainer,
+                                    modifier = Modifier.clickable { viewModel.addTestXp(100) }
+                                ) {
+                                    Text(
+                                        "+100 XP",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                    )
+                                }
+                                IconButton(onClick = { showTreeUnlockDialog = false }, modifier = Modifier.size(32.dp)) {
+                                    Icon(Icons.Rounded.Close, contentDescription = "Close")
+                                }
                             }
                         }
-                        Text("Earn XP from tasks to level up and unlock rare tree species.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        
-                        LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            val treeData = listOf(
-                                Triple("Emerald Pine", "Level 1+", "🌲"),
-                                Triple("Sakura Cherry Blossom", "Level 3+", "🌸"),
-                                Triple("Autumn Oak", "Level 5+", "🍁"),
-                                Triple("Golden Bonsai", "Level 10+", "✨")
-                            )
-                            val userLevel = (state.xp / 100) + 1
-                            items(treeData) { (name, reqLevel, emoji) ->
-                                val requiredLevelInt = reqLevel.filter { it.isDigit() }.toIntOrNull() ?: 1
-                                val unlocked = userLevel >= requiredLevelInt
+
+                        val userLevel = (state.xp / 100) + 1
+                        val treeSpeciesList = listOf(
+                            listOf("Auto (Auto-Upgrade)", "1", "Automatically uses your highest unlocked tree species"),
+                            listOf("Emerald Pine", "1", "Classic resilient evergreen pine needles"),
+                            listOf("Sakura Cherry", "3", "Gentle pink blossoms for mindful daily focus"),
+                            listOf("Autumn Oak", "5", "Warm crimson autumn leaves with rich foliage"),
+                            listOf("Mystic Willow", "7", "Cascading wisteria violet leaves with glowing spores"),
+                            listOf("Celestial Redwood", "9", "Bioluminescent cyan redwood with stardust aura"),
+                            listOf("Golden Bonsai", "12", "Golden amber foliage with ancient curved trunk"),
+                            listOf("Cosmic Starlight", "15", "Rainbow gradient foliage with swirling fireflies")
+                        )
+
+                        LazyColumn(
+                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            items(treeSpeciesList) { item ->
+                                val name = item[0]
+                                val reqLevel = item[1].toInt()
+                                val desc = item[2]
+
+                                val unlocked = userLevel >= reqLevel
+                                val isEquipped = state.equippedTree == name || (name.startsWith("Auto") && state.equippedTree == "Auto")
+
                                 Surface(
-                                    shape = RoundedCornerShape(16.dp),
-                                    color = if (unlocked) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHighest,
+                                    shape = RoundedCornerShape(18.dp),
+                                    color = when {
+                                        isEquipped -> MaterialTheme.colorScheme.primaryContainer
+                                        unlocked -> MaterialTheme.colorScheme.surfaceContainerHigh
+                                        else -> MaterialTheme.colorScheme.surfaceContainerLow
+                                    },
+                                    border = BorderStroke(
+                                        width = if (isEquipped) 2.dp else 1.dp,
+                                        color = if (isEquipped) MaterialTheme.colorScheme.primary else Color.Transparent
+                                    ),
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                                        Text(emoji, style = MaterialTheme.typography.headlineMedium)
-                                        Spacer(Modifier.width(16.dp))
-                                        Column {
-                                            Text(name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = if (unlocked) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface)
-                                            Text(reqLevel, style = MaterialTheme.typography.labelSmall, color = if (unlocked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Row(
+                                        modifier = Modifier.padding(14.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                    ) {
+                                        TreeSpeciesBadge(
+                                            speciesName = name,
+                                            unlocked = unlocked
+                                        )
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                Text(name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = if (unlocked) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant)
+                                                if (!unlocked) {
+                                                    Text("🔒 Lvl $reqLevel+", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+                                                }
+                                            }
+                                            Text(desc, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        }
+
+                                        if (unlocked) {
+                                            Button(
+                                                onClick = {
+                                                    val eqName = if (name.startsWith("Auto")) "Auto" else name
+                                                    viewModel.setEquippedTree(eqName)
+                                                },
+                                                shape = RoundedCornerShape(12.dp),
+                                                colors = ButtonDefaults.buttonColors(
+                                                    containerColor = if (isEquipped) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondaryContainer,
+                                                    contentColor = if (isEquipped) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSecondaryContainer
+                                                )
+                                            ) {
+                                                Text(
+                                                    text = if (isEquipped) "EQUIPPED" else "EQUIP",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -1224,6 +1313,48 @@ private fun RoutineFlowApp(
 }
 
 @Composable
+private fun TreeSpeciesBadge(
+    speciesName: String,
+    unlocked: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val (badgeBg, iconColor) = when {
+        !unlocked -> Pair(MaterialTheme.colorScheme.surfaceContainerHighest, MaterialTheme.colorScheme.onSurfaceVariant)
+        speciesName.startsWith("Auto") -> Pair(Color(0xFF0284C7), Color.White)
+        speciesName == "Emerald Pine" -> Pair(Color(0xFF16A34A), Color.White)
+        speciesName == "Sakura Cherry" -> Pair(Color(0xFFEC4899), Color.White)
+        speciesName == "Autumn Oak" -> Pair(Color(0xFFDC2626), Color.White)
+        speciesName == "Mystic Willow" -> Pair(Color(0xFF9333EA), Color.White)
+        speciesName == "Celestial Redwood" -> Pair(Color(0xFF0891B2), Color.White)
+        speciesName == "Golden Bonsai" -> Pair(Color(0xFFD97706), Color.White)
+        else -> Pair(Color(0xFF6366F1), Color.White)
+    }
+
+    val iconVector = when {
+        !unlocked -> Icons.Rounded.Lock
+        speciesName.startsWith("Auto") -> Icons.Rounded.AutoAwesome
+        speciesName == "Emerald Pine" || speciesName == "Golden Bonsai" -> Icons.Rounded.LocalFlorist
+        speciesName == "Cosmic Starlight" -> Icons.Rounded.Stars
+        else -> Icons.Rounded.Park
+    }
+
+    Box(
+        modifier = modifier
+            .size(44.dp)
+            .clip(CircleShape)
+            .background(badgeBg),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = iconVector,
+            contentDescription = null,
+            tint = iconColor,
+            modifier = Modifier.size(22.dp)
+        )
+    }
+}
+
+@Composable
 private fun ConfettiOverlay(
     triggerTime: Long,
     onFinished: () -> Unit
@@ -1237,7 +1368,7 @@ private fun ConfettiOverlay(
         progress.animateTo(
             1f,
             animationSpec = androidx.compose.animation.core.tween(
-                durationMillis = 1800,
+                durationMillis = 2200,
                 easing = androidx.compose.animation.core.FastOutSlowInEasing
             )
         )
@@ -1253,24 +1384,30 @@ private fun ConfettiOverlay(
                 Color(0xFF4ADE80),
                 Color(0xFFF472B6),
                 Color(0xFFFBBF24),
-                Color(0xFFA78BFA)
+                Color(0xFFA78BFA),
+                Color(0xFFFB7185)
             )
-            List(45) { index ->
-                val startXRatio = 0.1f + (index * 0.022f) % 0.8f
-                val vx = ((index % 7) - 3) * 110f
-                val vy = -380f - (index % 5) * 90f
-                val initialRot = (index * 37f)
+            List(80) { index ->
+                val fromLeft = (index % 2 == 0)
+                val baseAngleDeg = if (fromLeft) -60f + (index % 5) * 6f else -120f - (index % 5) * 6f
+                val angleRad = Math.toRadians(baseAngleDeg.toDouble())
+                val speed = 550f + (index % 7) * 80f
+                
+                val vx = kotlin.math.cos(angleRad).toFloat() * speed
+                val vy = kotlin.math.sin(angleRad).toFloat() * speed
+                val initialRot = (index * 41f)
                 val color = colors[index % colors.size]
-                val sizeDp = 8.dp + (index % 4).dp
-                val isCircle = (index % 2 == 0)
+                val sizeDp = 7.dp + (index % 5).dp
+                val shapeType = index % 3
+                
                 ConfettiParticle(
-                    startXRatio = startXRatio,
+                    fromLeft = fromLeft,
                     vx = vx,
                     vy = vy,
                     initialRot = initialRot,
                     color = color,
                     sizePx = with(density) { sizeDp.toPx() },
-                    isCircle = isCircle
+                    shapeType = shapeType
                 )
             }
         }
@@ -1280,28 +1417,43 @@ private fun ConfettiOverlay(
             val canvasH = size.height
 
             particles.forEach { particle ->
-                val gravity = 1100f * (t * t)
-                val x = (particle.startXRatio * canvasW) + (particle.vx * t)
-                val y = (canvasH * 0.35f) + (particle.vy * t) + gravity
-                val currentAlpha = (1f - t).coerceIn(0f, 1f)
-                val currentRotation = particle.initialRot + t * 540f
+                val startX = if (particle.fromLeft) 0f else canvasW
+                val startY = canvasH * 0.95f
+                
+                val gravity = 950f * (t * t)
+                val flutterX = kotlin.math.sin(t * 12f + particle.initialRot).toFloat() * 25f
+                val x = startX + (particle.vx * t) + flutterX
+                val y = startY + (particle.vy * t) + gravity
+                
+                val currentAlpha = (1f - (t * 1.1f).coerceIn(0f, 1f))
+                val currentRotation = particle.initialRot + t * 720f
 
-                if (y < canvasH + 60f) {
+                if (y < canvasH + 60f && currentAlpha > 0f) {
                     withTransform({
                         translate(left = x, top = y)
                         rotate(degrees = currentRotation)
                     }) {
-                        if (particle.isCircle) {
-                            drawCircle(
-                                color = particle.color.copy(alpha = currentAlpha),
-                                radius = particle.sizePx / 2f
-                            )
-                        } else {
-                            drawRoundRect(
-                                color = particle.color.copy(alpha = currentAlpha),
-                                size = Size(particle.sizePx * 1.5f, particle.sizePx * 0.8f),
-                                cornerRadius = androidx.compose.ui.geometry.CornerRadius(2.dp.toPx(), 2.dp.toPx())
-                            )
+                        when (particle.shapeType) {
+                            0 -> {
+                                drawRoundRect(
+                                    color = particle.color.copy(alpha = currentAlpha),
+                                    size = Size(particle.sizePx * 1.6f, particle.sizePx * 0.8f),
+                                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(2.dp.toPx(), 2.dp.toPx())
+                                )
+                            }
+                            1 -> {
+                                drawCircle(
+                                    color = particle.color.copy(alpha = currentAlpha),
+                                    radius = particle.sizePx / 2f
+                                )
+                            }
+                            else -> {
+                                drawRoundRect(
+                                    color = particle.color.copy(alpha = currentAlpha),
+                                    size = Size(particle.sizePx * 2.5f, particle.sizePx * 0.5f),
+                                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(1.dp.toPx(), 1.dp.toPx())
+                                )
+                            }
                         }
                     }
                 }
@@ -1311,13 +1463,13 @@ private fun ConfettiOverlay(
 }
 
 private data class ConfettiParticle(
-    val startXRatio: Float,
+    val fromLeft: Boolean,
     val vx: Float,
     val vy: Float,
     val initialRot: Float,
     val color: Color,
     val sizePx: Float,
-    val isCircle: Boolean
+    val shapeType: Int
 )
 
 @Composable
@@ -1948,6 +2100,14 @@ private fun TodayScreen(
     onStartFocusOnTask: ((TaskEntity) -> Unit)? = null,
     onTriggerCelebration: () -> Unit = {}
 ) {
+    var selectedHabitCategory by remember { mutableStateOf("All") }
+    val habitCategories = remember(state.habits) {
+        listOf("All") + state.habits.map { it.category }.distinct().filter { it.isNotBlank() }
+    }
+    val filteredHabits = remember(state.habits, selectedHabitCategory) {
+        if (selectedHabitCategory == "All") state.habits else state.habits.filter { it.category == selectedHabitCategory }
+    }
+
     AdaptiveLazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
@@ -1966,24 +2126,48 @@ private fun TodayScreen(
             }
         }
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Your habits",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-                TextButton(onClick = onOpenAdd) {
-                    Icon(
-                        Icons.Rounded.Add,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Your habits",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MaterialTheme.colorScheme.onBackground
                     )
-                    Spacer(Modifier.width(4.dp))
-                    Text("Add habit")
+                    TextButton(onClick = onOpenAdd) {
+                        Icon(
+                            Icons.Rounded.Add,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text("Add habit")
+                    }
+                }
+
+                if (habitCategories.size > 1) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        habitCategories.forEach { cat ->
+                            FilterChip(
+                                selected = selectedHabitCategory == cat,
+                                onClick = { selectedHabitCategory = cat },
+                                label = { Text(cat) },
+                                shape = RoundedCornerShape(12.dp),
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -2047,7 +2231,7 @@ private fun TodayScreen(
                 }
             }
         }
-        items(state.habits, key = { it.id }) { habit ->
+        items(filteredHabits, key = { it.id }) { habit ->
             Box(Modifier.animateItem()) {
                 HabitCard(
                     habit = habit,
@@ -2202,7 +2386,7 @@ private fun DailyTreeCard(state: TodayUiState, tasks: List<TaskEntity>) {
                     drawIsoTile(centerX, centerY, 150f, 80f, Color(0xFF4ADE80), false)
                     
                     if (animatedGrowth > 0f) {
-                        drawLowPoly3DTree(centerX, centerY, 2.0f, animatedGrowth, state.xp, timeFloat)
+                        drawLowPoly3DTree(centerX, centerY, 2.0f, animatedGrowth, state.xp, state.equippedTree, timeFloat)
                     } else {
                         drawLowPolyRock(centerX, centerY, 2.0f)
                     }
@@ -2311,7 +2495,12 @@ private fun GardenDayChip(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun GrowthScreen(state: TodayUiState, tasks: List<TaskEntity>, onOpenUnlockDialog: () -> Unit) {
+private fun GrowthScreen(
+    state: TodayUiState,
+    tasks: List<TaskEntity>,
+    onOpenUnlockDialog: () -> Unit,
+    onTestAddXp: () -> Unit
+) {
     var subViewMode by remember { mutableIntStateOf(0) } // 0 = 3D World, 1 = Stats & XP
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -2399,7 +2588,7 @@ private fun GrowthScreen(state: TodayUiState, tasks: List<TaskEntity>, onOpenUnl
             if (view == 0) {
                 GardenWorldView(state, tasks)
             } else {
-                ProgressStatsView(state, onOpenUnlockDialog)
+                ProgressStatsView(state, onOpenUnlockDialog, onTestAddXp)
             }
         }
     }
@@ -2685,7 +2874,7 @@ private fun GardenWorldView(state: TodayUiState, tasks: List<TaskEntity>) {
                                     drawProjected3DTile(corners, thickness, tileColor, isSelected)
 
                                     if (dayRatio > 0f) {
-                                        drawLowPoly3DTree(screenX, screenY, globalScale * 0.9f, dayRatio, state.xp, timeFloat)
+                                        drawLowPoly3DTree(screenX, screenY, globalScale * 0.9f, dayRatio, state.xp, state.equippedTree, timeFloat)
                                     } else {
                                         drawLowPolyRock(screenX, screenY - 2f * globalScale, globalScale * 0.9f)
                                     }
@@ -2716,7 +2905,7 @@ private fun GardenWorldView(state: TodayUiState, tasks: List<TaskEntity>) {
                                     drawIsoTile(isoX, isoY, tileWidth * staticScale, tileHeight * staticScale, tileColor, isSelected)
 
                                     if (dayRatio > 0f) {
-                                        drawLowPoly3DTree(isoX, isoY, staticScale * 0.9f, dayRatio, state.xp, timeFloat)
+                                        drawLowPoly3DTree(isoX, isoY, staticScale * 0.9f, dayRatio, state.xp, state.equippedTree, timeFloat)
                                     } else {
                                         drawLowPolyRock(isoX, isoY - 2f * staticScale, staticScale * 0.9f)
                                     }
@@ -2749,6 +2938,47 @@ private fun GardenWorldView(state: TodayUiState, tasks: List<TaskEntity>) {
                                         radius = 8f,
                                         center = Offset(fx, fy)
                                     )
+                                }
+                            } else {
+                                // Day/Sunset Species Weather Particles
+                                val userLevel = (state.xp / 100) + 1
+                                val activeSpecies = if (state.equippedTree != "Auto") {
+                                    state.equippedTree
+                                } else {
+                                    when {
+                                        userLevel >= 15 -> "Cosmic Starlight"
+                                        userLevel >= 12 -> "Golden Bonsai"
+                                        userLevel >= 9  -> "Celestial Redwood"
+                                        userLevel >= 7  -> "Mystic Willow"
+                                        userLevel >= 5  -> "Autumn Oak"
+                                        userLevel >= 3  -> "Sakura Cherry"
+                                        else        -> "Emerald Pine"
+                                    }
+                                }
+
+                                when (activeSpecies) {
+                                    "Sakura Cherry" -> {
+                                        for (i in 0..12) {
+                                            val px = (size.width * 0.1f) + (i * 73f + timeFloat * 30f) % (size.width * 0.8f)
+                                            val py = (timeFloat * 60f + i * 47f) % (size.height * 0.8f)
+                                            drawCircle(Color(0xFFF472B6).copy(alpha = 0.65f), 3.5f, Offset(px, py))
+                                        }
+                                    }
+                                    "Autumn Oak" -> {
+                                        for (i in 0..12) {
+                                            val px = (size.width * 0.15f) + (i * 67f + timeFloat * 25f) % (size.width * 0.75f)
+                                            val py = (timeFloat * 50f + i * 53f) % (size.height * 0.8f)
+                                            drawOval(Color(0xFFEF4444).copy(alpha = 0.7f), topLeft = Offset(px, py), size = Size(6f, 3f))
+                                        }
+                                    }
+                                    "Cosmic Starlight", "Celestial Redwood", "Golden Bonsai" -> {
+                                        for (i in 0..10) {
+                                            val px = size.width * 0.2f + kotlin.math.sin(timeFloat + i).toFloat() * size.width * 0.3f
+                                            val py = size.height * 0.3f + kotlin.math.cos(timeFloat * 1.2f + i).toFloat() * size.height * 0.25f
+                                            val dustColor = if (activeSpecies == "Golden Bonsai") Color(0xFFFCD34D) else Color(0xFF38BDF8)
+                                            drawCircle(dustColor.copy(alpha = 0.7f), 2.5f, Offset(px, py))
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -2890,9 +3120,9 @@ private fun GardenWorldView(state: TodayUiState, tasks: List<TaskEntity>) {
                     val dayListState = rememberLazyListState()
                     val coroutineScope = rememberCoroutineScope()
 
-                    // Automatically scroll to Today on launch
-                    LaunchedEffect(Unit) {
-                        dayListState.scrollToItem(pastDays.lastIndex)
+                    // Automatically scroll to selected day in timeline
+                    LaunchedEffect(selectedDayIndex) {
+                        dayListState.animateScrollToItem((selectedDayIndex - 1).coerceAtLeast(0))
                     }
 
                     Row(
@@ -3140,6 +3370,7 @@ private fun DrawScope.drawLowPoly3DTree(
     scale: Float,
     completionRatio: Float,
     userXp: Int,
+    equippedTree: String = "Auto",
     time: Float = 0f
 ) {
     if (completionRatio <= 0f) return // 0% tasks done -> NO TREE!
@@ -3158,24 +3389,52 @@ private fun DrawScope.drawLowPoly3DTree(
     
     val level = (userXp / 100) + 1
     
-    // Unlockable Tree Species based on Level
-    val (foliageTopColors, foliageLeftColors, foliageRightColors) = when {
-        level >= 10 -> Triple( // Level 10: Golden Bonsai
+    val activeSpecies = if (equippedTree != "Auto") {
+        equippedTree
+    } else {
+        when {
+            level >= 15 -> "Cosmic Starlight"
+            level >= 12 -> "Golden Bonsai"
+            level >= 9  -> "Celestial Redwood"
+            level >= 7  -> "Mystic Willow"
+            level >= 5  -> "Autumn Oak"
+            level >= 3  -> "Sakura Cherry"
+            else        -> "Emerald Pine"
+        }
+    }
+
+    val (foliageTopColors, foliageLeftColors, foliageRightColors) = when (activeSpecies) {
+        "Cosmic Starlight" -> Triple(
+            listOf(Color(0xFF38BDF8), Color(0xFFF472B6), Color(0xFFFDE047)),
+            listOf(Color(0xFF818CF8), Color(0xFFEC4899), Color(0xFFF59E0B)),
+            listOf(Color(0xFF6366F1), Color(0xFFDB2777), Color(0xFFD97706))
+        )
+        "Golden Bonsai" -> Triple(
             listOf(Color(0xFFFCD34D), Color(0xFFFBBF24), Color(0xFFF59E0B)),
             listOf(Color(0xFFF59E0B), Color(0xFFD97706), Color(0xFFB45309)),
             listOf(Color(0xFFD97706), Color(0xFFB45309), Color(0xFF92400E))
         )
-        level >= 5 -> Triple( // Level 5: Autumn Oak
+        "Celestial Redwood" -> Triple(
+            listOf(Color(0xFF67E8F9), Color(0xFF22D3EE), Color(0xFF06B6D4)),
+            listOf(Color(0xFF06B6D4), Color(0xFF0891B2), Color(0xFF0E7490)),
+            listOf(Color(0xFF0891B2), Color(0xFF0E7490), Color(0xFF155E75))
+        )
+        "Mystic Willow" -> Triple(
+            listOf(Color(0xFFE9D5FF), Color(0xFFC084FC), Color(0xFFA855F7)),
+            listOf(Color(0xFFA855F7), Color(0xFF9333EA), Color(0xFF7E22CE)),
+            listOf(Color(0xFF9333EA), Color(0xFF7E22CE), Color(0xFF6B21A8))
+        )
+        "Autumn Oak" -> Triple(
             listOf(Color(0xFFFCA5A5), Color(0xFFF87171), Color(0xFFEF4444)),
             listOf(Color(0xFFEF4444), Color(0xFFDC2626), Color(0xFFB91C1C)),
             listOf(Color(0xFFDC2626), Color(0xFFB91C1C), Color(0xFF991B1B))
         )
-        level >= 3 -> Triple( // Level 3: Sakura Cherry Blossom
+        "Sakura Cherry" -> Triple(
             listOf(Color(0xFFFBCFE8), Color(0xFFF9A8D4), Color(0xFFF472B6)),
             listOf(Color(0xFFF472B6), Color(0xFFEC4899), Color(0xFFDB2777)),
             listOf(Color(0xFFEC4899), Color(0xFFDB2777), Color(0xFFBE185D))
         )
-        else -> Triple( // Level 1-2: Emerald Pine
+        else -> Triple(
             listOf(Color(0xFF22C55E), Color(0xFF4ADE80), Color(0xFF86EFAC)),
             listOf(Color(0xFF16A34A), Color(0xFF22C55E), Color(0xFF4ADE80)),
             listOf(Color(0xFF15803D), Color(0xFF16A34A), Color(0xFF22C55E))
@@ -4444,6 +4703,39 @@ private fun TaskCard(
                         textDecoration = if (task.completed) TextDecoration.LineThrough else TextDecoration.None
                     )
                 }
+                Spacer(Modifier.height(4.dp))
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val priorityText = when (task.priority) {
+                        3 -> "🔴 High"
+                        2 -> "🟡 Med"
+                        else -> "🟢 Low"
+                    }
+                    val estMins = task.estimatedMinutes ?: 25
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerHighest
+                    ) {
+                        Text(
+                            text = priorityText,
+                            style = MaterialTheme.typography.labelSmall,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerHighest
+                    ) {
+                        Text(
+                            text = "⏱️ ${estMins}m",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
             }
             if (!task.completed && onStartFocus != null) {
                 IconButton(onClick = onStartFocus) {
@@ -4962,7 +5254,11 @@ private fun PlannerBlockCard(
 }
 
 @Composable
-private fun ProgressStatsView(state: TodayUiState, onOpenUnlockDialog: () -> Unit) {
+private fun ProgressStatsView(
+    state: TodayUiState,
+    onOpenUnlockDialog: () -> Unit,
+    onTestAddXp: () -> Unit = {}
+) {
     val level = (state.xp / 100) + 1
     val levelProgress = (state.xp % 100) / 100f
     val totalCheckIns = state.activity.values.sum()
@@ -5051,11 +5347,42 @@ private fun ProgressStatsView(state: TodayUiState, onOpenUnlockDialog: () -> Uni
                         trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
                         strokeCap = StrokeCap.Round
                     )
-                    Text(
-                        text = "${100 - (state.xp % 100)} XP to the next level",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "${100 - (state.xp % 100)} XP to the next level",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            modifier = Modifier.clickable { onTestAddXp() }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    Icons.Rounded.Add,
+                                    contentDescription = "Add 100 XP",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Text(
+                                    text = "+100 XP (Test)",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -5194,6 +5521,7 @@ private fun WeeklyGraphs(activity: Map<LocalDate, Int>) {
 @Composable
 private fun CompletionBarChart(days: List<LocalDate>, values: List<Int>, maxValue: Int) {
     var isVisible by remember { mutableStateOf(false) }
+    var selectedIndex by remember { mutableStateOf<Int?>(null) }
     val animatedProgress by animateFloatAsState(
         targetValue = if (isVisible) 1f else 0f,
         animationSpec = spring(dampingRatio = 0.7f, stiffness = 100f),
@@ -5207,61 +5535,97 @@ private fun CompletionBarChart(days: List<LocalDate>, values: List<Int>, maxValu
 
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         val primaryColor = MaterialTheme.colorScheme.primary
-        Canvas(
-            Modifier
-                .fillMaxWidth()
-                .height(128.dp)
-                .semantics { contentDescription = "Seven day completion bar chart" }
-        ) {
-            val slot = size.width / values.size
-            val barWidth = slot * .52f
-            values.forEachIndexed { index, value ->
-                val targetHeight = size.height * value.toFloat() / maxValue
-                val currentHeight = targetHeight * animatedProgress
-                val left = index * slot + (slot - barWidth) / 2f
-                
-                // Background Track
-                drawRoundRect(
-                    color = primaryColor.copy(alpha = .12f),
-                    topLeft = Offset(left, 0f),
-                    size = Size(barWidth, size.height),
-                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(12f, 12f)
-                )
+        val haptics = LocalHapticFeedback.current
 
-                // Foreground Fill
-                drawRoundRect(
-                    brush = Brush.verticalGradient(
-                        colors = listOf(
-                            primaryColor.copy(alpha = 0.85f),
-                            primaryColor.copy(alpha = 0.35f)
+        Box {
+            Canvas(
+                Modifier
+                    .fillMaxWidth()
+                    .height(128.dp)
+                    .pointerInput(values) {
+                        detectTapGestures { tapOffset ->
+                            val slot = size.width / values.size
+                            val tappedIdx = (tapOffset.x / slot).toInt().coerceIn(0, values.lastIndex)
+                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            selectedIndex = tappedIdx
+                        }
+                    }
+                    .semantics { contentDescription = "Seven day completion bar chart" }
+            ) {
+                val slot = size.width / values.size
+                val barWidth = slot * .52f
+                values.forEachIndexed { index, value ->
+                    val targetHeight = size.height * value.toFloat() / maxValue
+                    val currentHeight = targetHeight * animatedProgress
+                    val left = index * slot + (slot - barWidth) / 2f
+                    val isBarSelected = selectedIndex == index
+                    
+                    // Background Track
+                    drawRoundRect(
+                        color = if (isBarSelected) primaryColor.copy(alpha = 0.25f) else primaryColor.copy(alpha = .12f),
+                        topLeft = Offset(left, 0f),
+                        size = Size(barWidth, size.height),
+                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(12f, 12f)
+                    )
+
+                    // Foreground Fill
+                    drawRoundRect(
+                        brush = Brush.verticalGradient(
+                            colors = listOf(
+                                if (isBarSelected) Color.White else primaryColor.copy(alpha = 0.85f),
+                                primaryColor.copy(alpha = 0.35f)
+                            ),
+                            startY = size.height - currentHeight,
+                            endY = size.height
                         ),
-                        startY = size.height - currentHeight,
-                        endY = size.height
-                    ),
-                    topLeft = Offset(left, size.height - currentHeight),
-                    size = Size(barWidth, currentHeight),
-                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(12f, 12f)
-                )
+                        topLeft = Offset(left, size.height - currentHeight),
+                        size = Size(barWidth, currentHeight),
+                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(12f, 12f)
+                    )
 
-                // Top Specular Highlight
-                if (currentHeight > 10f) {
-                    drawOval(
-                        color = Color.White.copy(alpha = 0.5f),
-                        topLeft = Offset(left + barWidth * 0.15f, size.height - currentHeight + 2f),
-                        size = Size(barWidth * 0.7f, 4f)
+                    // Top Specular Highlight
+                    if (currentHeight > 10f) {
+                        drawOval(
+                            color = Color.White.copy(alpha = 0.5f),
+                            topLeft = Offset(left + barWidth * 0.15f, size.height - currentHeight + 2f),
+                            size = Size(barWidth * 0.7f, 4f)
+                        )
+                    }
+                }
+            }
+        }
+
+        selectedIndex?.let { idx ->
+            val day = days.getOrNull(idx)
+            val valCount = values.getOrNull(idx) ?: 0
+            if (day != null) {
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    modifier = Modifier.padding(top = 4.dp)
+                ) {
+                    Text(
+                        text = "${day.format(DateTimeFormatter.ofPattern("EEEE, MMM d", Locale.getDefault()))}: $valCount check-in${if (valCount != 1) "s" else ""}",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                     )
                 }
             }
         }
-        
-        Row(Modifier.fillMaxWidth()) {
-            days.forEach { day ->
+
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            days.forEachIndexed { index, day ->
+                val dayLabel = day.format(DateTimeFormatter.ofPattern("EEE", Locale.getDefault()))
                 Text(
-                    day.format(DateTimeFormatter.ofPattern("EEE", Locale.getDefault())).take(1),
-                    modifier = Modifier.weight(1f),
-                    textAlign = TextAlign.Center,
+                    text = dayLabel,
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = if (selectedIndex == index) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = if (selectedIndex == index) FontWeight.Bold else FontWeight.Normal
                 )
             }
         }
@@ -5700,12 +6064,22 @@ private fun AddHabitDialog(
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 PRESET_HABITS.forEach { preset ->
+                                    val isSelected = name == preset.name
                                     SuggestionChip(
                                         onClick = {
-                                            onAdd(preset.name, preset.category, preset.emoji, preset.reminderMinutes)
+                                            name = preset.name
+                                            category = preset.category
+                                            emoji = preset.emoji
+                                            reminder = preset.reminderMinutes?.let {
+                                                String.format(Locale.getDefault(), "%02d:%02d", it / 60, it % 60)
+                                            } ?: ""
                                         },
                                         label = { Text("${preset.emoji} ${preset.name}") },
-                                        shape = RoundedCornerShape(12.dp)
+                                        shape = RoundedCornerShape(12.dp),
+                                        colors = SuggestionChipDefaults.suggestionChipColors(
+                                            containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHighest,
+                                            labelColor = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
                                     )
                                 }
                             }

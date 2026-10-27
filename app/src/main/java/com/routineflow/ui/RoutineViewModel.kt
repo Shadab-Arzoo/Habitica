@@ -6,12 +6,14 @@ import android.app.Application
 import com.routineflow.widgets.RoutineFlowWidget
 import com.routineflow.widgets.RoutineFlowWeekWidget
 import com.routineflow.notifications.ReminderScheduler
+import com.routineflow.data.local.DailyCompletionCount
 import com.routineflow.data.local.HabitEntity
 import com.routineflow.data.local.TaskEntity
 import com.routineflow.domain.RoutineRepository
 import com.routineflow.domain.TaskRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -24,11 +26,13 @@ data class TodayUiState(
     val completedIds: Set<Long> = emptySet(),
     val recoveryCount: Int = 0,
     val activity: Map<LocalDate, Int> = emptyMap(),
-    val taskActivity: Map<LocalDate, Int> = emptyMap()
+    val taskActivity: Map<LocalDate, Int> = emptyMap(),
+    val bonusXp: Int = 0,
+    val equippedTree: String = "Auto"
 ) {
     val completedCount: Int get() = completedIds.size
     val progress: Float get() = if (habits.isEmpty()) 0f else completedCount.toFloat() / habits.size
-    val xp: Int get() = completedCount * 10
+    val xp: Int get() = (completedCount * 10) + bonusXp
     val currentStreak: Int
         get() {
             var day = LocalDate.now()
@@ -66,23 +70,49 @@ class RoutineViewModel @Inject constructor(
     private val taskRepository: TaskRepository,
     private val application: Application
 ) : ViewModel() {
+    private val _bonusXp = MutableStateFlow(0)
+    private val _equippedTree = MutableStateFlow("Auto")
+
+    fun addTestXp(amount: Int = 100) {
+        _bonusXp.value += amount
+    }
+
+    fun setEquippedTree(treeName: String) {
+        _equippedTree.value = treeName
+    }
+
     val tasks: StateFlow<List<TaskEntity>> = taskRepository.tasks()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val state: StateFlow<TodayUiState> = combine(
-        repository.habits(),
-        repository.todayCompletions(),
-        repository.recoveryPlans(),
-        repository.activityCounts(LocalDate.now().minusDays(111), LocalDate.now()),
-        taskRepository.dailyCompletionCounts(LocalDate.now().minusDays(111), LocalDate.now())
-    ) { habits, completions, recovery, activity, taskActivity ->
+        combine(
+            repository.habits(),
+            repository.todayCompletions(),
+            repository.recoveryPlans()
+        ) { h, c, r -> Triple(h, c, r) },
+        combine(
+            repository.activityCounts(LocalDate.now().minusDays(111), LocalDate.now()),
+            taskRepository.dailyCompletionCounts(LocalDate.now().minusDays(111), LocalDate.now()),
+            _bonusXp,
+            _equippedTree
+        ) { a, ta, bxp, eq -> Flow2Data(a, ta, bxp, eq) }
+    ) { part1, part2 ->
         TodayUiState(
-            habits = habits,
-            completedIds = completions.map { it.habitId }.toSet(),
-            recoveryCount = recovery.size,
-            activity = activity.associate { LocalDate.parse(it.date) to it.total },
-            taskActivity = taskActivity
+            habits = part1.first,
+            completedIds = part1.second.map { it.habitId }.toSet(),
+            recoveryCount = part1.third.size,
+            activity = part2.activity.associate { LocalDate.parse(it.date) to it.total },
+            taskActivity = part2.taskActivity,
+            bonusXp = part2.bonusXp,
+            equippedTree = part2.equippedTree
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TodayUiState())
+
+private data class Flow2Data(
+    val activity: List<DailyCompletionCount>,
+    val taskActivity: Map<LocalDate, Int>,
+    val bonusXp: Int,
+    val equippedTree: String
+)
 
     fun addHabit(name: String, category: String, emoji: String, reminderMinutes: Int?) {
         if (name.isBlank()) return
