@@ -27,6 +27,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -1213,7 +1214,111 @@ private fun RoutineFlowApp(
             }
         }
     }
+
+    if (showConfetti) {
+        ConfettiOverlay(
+            triggerTime = confettiTriggerTime,
+            onFinished = { showConfetti = false }
+        )
+    }
 }
+
+@Composable
+private fun ConfettiOverlay(
+    triggerTime: Long,
+    onFinished: () -> Unit
+) {
+    if (triggerTime == 0L) return
+
+    val progress = remember(triggerTime) { androidx.compose.animation.core.Animatable(0f) }
+
+    androidx.compose.runtime.LaunchedEffect(triggerTime) {
+        progress.snapTo(0f)
+        progress.animateTo(
+            1f,
+            animationSpec = androidx.compose.animation.core.tween(
+                durationMillis = 1800,
+                easing = androidx.compose.animation.core.FastOutSlowInEasing
+            )
+        )
+        onFinished()
+    }
+
+    val t = progress.value
+    if (t > 0f && t < 1f) {
+        val density = LocalDensity.current
+        val particles = remember(triggerTime) {
+            val colors = listOf(
+                Color(0xFF38BDF8),
+                Color(0xFF4ADE80),
+                Color(0xFFF472B6),
+                Color(0xFFFBBF24),
+                Color(0xFFA78BFA)
+            )
+            List(45) { index ->
+                val startXRatio = 0.1f + (index * 0.022f) % 0.8f
+                val vx = ((index % 7) - 3) * 110f
+                val vy = -380f - (index % 5) * 90f
+                val initialRot = (index * 37f)
+                val color = colors[index % colors.size]
+                val sizeDp = 8.dp + (index % 4).dp
+                val isCircle = (index % 2 == 0)
+                ConfettiParticle(
+                    startXRatio = startXRatio,
+                    vx = vx,
+                    vy = vy,
+                    initialRot = initialRot,
+                    color = color,
+                    sizePx = with(density) { sizeDp.toPx() },
+                    isCircle = isCircle
+                )
+            }
+        }
+
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val canvasW = size.width
+            val canvasH = size.height
+
+            particles.forEach { particle ->
+                val gravity = 1100f * (t * t)
+                val x = (particle.startXRatio * canvasW) + (particle.vx * t)
+                val y = (canvasH * 0.35f) + (particle.vy * t) + gravity
+                val currentAlpha = (1f - t).coerceIn(0f, 1f)
+                val currentRotation = particle.initialRot + t * 540f
+
+                if (y < canvasH + 60f) {
+                    withTransform({
+                        translate(left = x, top = y)
+                        rotate(degrees = currentRotation)
+                    }) {
+                        if (particle.isCircle) {
+                            drawCircle(
+                                color = particle.color.copy(alpha = currentAlpha),
+                                radius = particle.sizePx / 2f
+                            )
+                        } else {
+                            drawRoundRect(
+                                color = particle.color.copy(alpha = currentAlpha),
+                                size = Size(particle.sizePx * 1.5f, particle.sizePx * 0.8f),
+                                cornerRadius = androidx.compose.ui.geometry.CornerRadius(2.dp.toPx(), 2.dp.toPx())
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private data class ConfettiParticle(
+    val startXRatio: Float,
+    val vx: Float,
+    val vy: Float,
+    val initialRot: Float,
+    val color: Color,
+    val sizePx: Float,
+    val isCircle: Boolean
+)
 
 @Composable
 private fun WaterDropletBurst(
@@ -2543,13 +2648,27 @@ private fun GardenWorldView(state: TodayUiState, tasks: List<TaskEntity>) {
                                     val screenX = centerX + rx
                                     val screenY = centerY - ry
                                     
-                                    Triple(index, depth, Pair(screenX, screenY))
+                                    val hw = localW / 2f
+                                    fun projPt(px: Float, pz: Float): Offset {
+                                        val prx = px * cosYaw - pz * sinYaw
+                                        val prz = px * sinYaw + pz * cosYaw
+                                        val pry = 0f * cosPitch - prz * sinPitch
+                                        return Offset(centerX + prx, centerY - pry)
+                                    }
+                                    
+                                    val c0 = projPt(lx - hw, lz - hw)
+                                    val c1 = projPt(lx + hw, lz - hw)
+                                    val c2 = projPt(lx + hw, lz + hw)
+                                    val c3 = projPt(lx - hw, lz + hw)
+
+                                    Triple(index, depth, Triple(screenX, screenY, listOf(c0, c1, c2, c3)))
                                 }.sortedBy { it.second }
 
-                                renderPass.forEach { (index, _, coords) ->
+                                renderPass.forEach { (index, _, tileData) ->
                                     val dayDate = pastDays[index]
-                                    val screenX = coords.first
-                                    val screenY = coords.second
+                                    val screenX = tileData.first
+                                    val screenY = tileData.second
+                                    val corners = tileData.third
 
                                     val completedTasks = state.taskActivity[dayDate] ?: 0
                                     val dayRatio = treeRatio(completedTasks, tasks.size.coerceAtLeast(1))
@@ -2561,9 +2680,9 @@ private fun GardenWorldView(state: TodayUiState, tasks: List<TaskEntity>) {
                                         else -> Color(0xFF1E293B)
                                     }
                                     
-                                    val dynamicTileHeight = localW * sinPitch
+                                    val thickness = 10f * globalScale * sinPitch
 
-                                    drawIsoTile(screenX, screenY, localW * 1.414f, dynamicTileHeight * 1.414f, tileColor, isSelected)
+                                    drawProjected3DTile(corners, thickness, tileColor, isSelected)
 
                                     if (dayRatio > 0f) {
                                         drawLowPoly3DTree(screenX, screenY, globalScale * 0.9f, dayRatio, state.xp, timeFloat)
@@ -2943,6 +3062,60 @@ private fun DrawScope.drawIsoTile(
         close()
     }
     drawPath(rightPath, tileColor.copy(alpha = 0.60f))
+}
+
+/**
+ * Draws a 3D Perspective Land Tile using 4 Projected Corners (Seamless at any Yaw/Pitch angle).
+ */
+private fun DrawScope.drawProjected3DTile(
+    corners: List<Offset>,
+    thickness: Float,
+    tileColor: Color,
+    isSelected: Boolean
+) {
+    if (corners.size < 4) return
+    val p0 = corners[0]
+    val p1 = corners[1]
+    val p2 = corners[2]
+    val p3 = corners[3]
+
+    // 1. Draw front-facing side walls FIRST
+    val pts = listOf(p0, p1, p2, p3, p0)
+    for (i in 0 until 4) {
+        val a = pts[i]
+        val b = pts[i + 1]
+        // Front-facing if edge goes right-to-left on screen (b.x < a.x)
+        if (b.x < a.x) {
+            val sidePath = Path().apply {
+                moveTo(a.x, a.y)
+                lineTo(b.x, b.y)
+                lineTo(b.x, b.y + thickness)
+                lineTo(a.x, a.y + thickness)
+                close()
+            }
+            val darken = if (i % 2 == 0) 0.82f else 0.62f
+            drawPath(sidePath, tileColor.copy(alpha = darken))
+            drawLine(Color.Black.copy(alpha = 0.2f), Offset(a.x, a.y), Offset(a.x, a.y + thickness), 1.2f)
+            drawLine(Color.Black.copy(alpha = 0.2f), Offset(b.x, b.y), Offset(b.x, b.y + thickness), 1.2f)
+        }
+    }
+
+    // 2. Draw Top Face Polygon
+    val topPath = Path().apply {
+        moveTo(p0.x, p0.y)
+        lineTo(p1.x, p1.y)
+        lineTo(p2.x, p2.y)
+        lineTo(p3.x, p3.y)
+        close()
+    }
+    drawPath(topPath, tileColor)
+
+    // Outlines & selection ring
+    drawPath(
+        path = topPath,
+        color = if (isSelected) Color.White else Color.Black.copy(alpha = 0.15f),
+        style = Stroke(width = if (isSelected) 3.5f else 1.2f)
+    )
 }
 
 /**
