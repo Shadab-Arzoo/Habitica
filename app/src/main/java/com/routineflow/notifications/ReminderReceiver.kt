@@ -23,11 +23,25 @@ class ReminderReceiver : BroadcastReceiver() {
         val name = intent.getStringExtra(EXTRA_HABIT_NAME) ?: "your habit"
         val emoji = intent.getStringExtra(EXTRA_HABIT_EMOJI) ?: "✨"
         val quote = QUOTES[(habitId % QUOTES.size).toInt()]
+        
+        val launchIntent = Intent(context, Class.forName("com.routineflow.MainActivity")).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            action = "com.routineflow.ACTION_CHECKIN_HABIT"
+            putExtra("habit_id", habitId)
+        }
+        val pendingIntent = android.app.PendingIntent.getActivity(
+            context,
+            habitId.toInt(),
+            launchIntent,
+            android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+        )
+
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_popup_reminder)
-            .setContentTitle("$emoji $name")
+            .setContentTitle("Time for $emoji $name")
             .setContentText(quote)
             .setStyle(NotificationCompat.BigTextStyle().bigText(quote))
+            .setContentIntent(pendingIntent)
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
             .setPublicVersion(
                 NotificationCompat.Builder(context, CHANNEL_ID)
@@ -37,7 +51,7 @@ class ReminderReceiver : BroadcastReceiver() {
                     .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                     .build()
             )
-            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
             .build()
         try {

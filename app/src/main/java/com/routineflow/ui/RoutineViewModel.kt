@@ -33,9 +33,28 @@ data class TodayUiState(
         get() {
             var day = LocalDate.now()
             var streak = 0
-            while ((activity[day] ?: 0) > 0) {
-                streak++
+            
+            // If today is 0, we don't immediately break if yesterday had activity (we just haven't done it yet today)
+            if ((activity[day] ?: 0) == 0 && (activity[day.minusDays(1)] ?: 0) > 0) {
                 day = day.minusDays(1)
+            }
+            
+            var shieldsUsedThisMonth = 0
+            val currentMonth = LocalDate.now().month
+            
+            while (true) {
+                if ((activity[day] ?: 0) > 0) {
+                    streak++
+                    day = day.minusDays(1)
+                } else {
+                    // Try to use a Streak Freeze Shield for this missed day
+                    if (shieldsUsedThisMonth < 1 && day.month == currentMonth) {
+                        shieldsUsedThisMonth++
+                        day = day.minusDays(1)
+                    } else {
+                        break
+                    }
+                }
             }
             return streak
         }

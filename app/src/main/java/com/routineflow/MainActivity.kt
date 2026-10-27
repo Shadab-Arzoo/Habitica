@@ -71,6 +71,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.rounded.VolumeOff
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Check
@@ -87,6 +88,11 @@ import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.SelfImprovement
 import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.VolumeOff
+import androidx.compose.material.icons.rounded.WaterDrop
+import androidx.compose.material.icons.rounded.Park
+import androidx.compose.material.icons.rounded.LocalCafe
+import androidx.compose.material.icons.rounded.Stars
 import androidx.compose.material.icons.rounded.GridView
 import androidx.compose.material.icons.rounded.SportsEsports
 import androidx.compose.material.icons.rounded.ViewInAr
@@ -342,16 +348,97 @@ private fun RoutineFlowApp(
     var showAdd by remember { mutableStateOf(false) }
     var showAddTask by remember { mutableStateOf(false) }
     var showSettingsDialog by remember { mutableStateOf(false) }
+    var showTreeUnlockDialog by remember { mutableStateOf(false) }
     var avatarClickCount by remember { mutableIntStateOf(0) }
+    
+    // -- Global Focus Timer State (Survives Tab Switches & Backgrounding) --
     var activeFocusTask by remember { mutableStateOf<TaskEntity?>(null) }
+    var focusSelectedMinutes by remember { mutableIntStateOf(25) }
+    var focusSecondsLeft by remember { mutableIntStateOf(25 * 60) }
+    var focusIsRunning by remember { mutableStateOf(false) }
+    var focusCompletedSessions by remember { mutableIntStateOf(0) }
+    val ambientSounds = remember { listOf("Silent", "Rainfall", "Forest", "Cafe", "Deep Space") }
+    var focusSelectedSound by remember { mutableStateOf(ambientSounds[0]) }
+    var focusTargetEndTime by remember { mutableStateOf(0L) }
+    // ----------------------------------------------------------------------
+    
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val haptics = LocalHapticFeedback.current
+
+    // Gamification state
+    var showConfetti by remember { mutableStateOf(false) }
+    var confettiTriggerTime by remember { mutableStateOf(0L) }
+    
+    fun playCelebrationSound() {
+        try {
+            val ringtoneUri = android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_NOTIFICATION)
+            val r = android.media.RingtoneManager.getRingtone(context, ringtoneUri)
+            r.play()
+        } catch (_: Exception) {}
+    }
+    
+    fun triggerCompletionCelebration() {
+        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+        playCelebrationSound()
+        showConfetti = true
+        confettiTriggerTime = System.currentTimeMillis()
+    }
+    
     var addWaterActive by remember { mutableStateOf(false) }
     var closingAddTask by remember { mutableStateOf(false) }
     var selectedTab by remember { mutableIntStateOf(0) }
-    val haptics = LocalHapticFeedback.current
     val addAnimationScope = androidx.compose.runtime.rememberCoroutineScope()
     val waterProgress = remember { androidx.compose.animation.core.Animatable(0f) }
 
-    val context = androidx.compose.ui.platform.LocalContext.current
+    // Background Resilient Timer Logic
+    androidx.compose.runtime.LaunchedEffect(focusIsRunning, focusTargetEndTime) {
+        if (focusIsRunning) {
+            FocusNotificationHelper.updateFocusNotification(context, true, focusSecondsLeft, focusSelectedMinutes)
+            while (focusIsRunning) {
+                val now = System.currentTimeMillis()
+                val remaining = ((focusTargetEndTime - now) / 1000L).toInt()
+                if (remaining > 0) {
+                    focusSecondsLeft = remaining
+                    
+                    // 10 minute vibration checks
+                    if (remaining < (focusSelectedMinutes * 60) && remaining % (10 * 60) == 0) {
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        val vibrator = context.getSystemService(android.content.Context.VIBRATOR_SERVICE) as? android.os.Vibrator
+                        if (android.os.Build.VERSION.SDK_INT >= 26) {
+                            vibrator?.vibrate(android.os.VibrationEffect.createOneShot(80L, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
+                        } else {
+                            vibrator?.vibrate(80L)
+                        }
+                    }
+                    FocusNotificationHelper.updateFocusNotification(context, true, remaining, focusSelectedMinutes)
+                    kotlinx.coroutines.delay(500L) // Tick twice a second to stay perfectly in sync
+                } else {
+                    // Timer Finished
+                    focusSecondsLeft = 0
+                    focusIsRunning = false
+                    focusCompletedSessions++
+                    FocusNotificationHelper.updateFocusNotification(context, false, 0, focusSelectedMinutes)
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    
+                    // Play Alarm Ringtone
+                    try {
+                        val ringtoneUri = android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_ALARM) 
+                            ?: android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_NOTIFICATION)
+                        val ringtone = android.media.RingtoneManager.getRingtone(context, ringtoneUri)
+                        ringtone.play()
+                        // Auto-stop ringtone after 6 seconds
+                        kotlinx.coroutines.delay(6000L)
+                        if (ringtone.isPlaying) ringtone.stop()
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
+            }
+        } else {
+            FocusNotificationHelper.updateFocusNotification(context, false, 0, focusSelectedMinutes)
+        }
+    }
+
     val activity = context as? FragmentActivity
     androidx.compose.runtime.LaunchedEffect(activity?.intent) {
         activity?.intent?.action?.let { action ->
@@ -362,6 +449,9 @@ private fun RoutineFlowApp(
             } else if (action == "com.routineflow.ACTION_ADD_HABIT") {
                 showAdd = true
                 selectedTab = 0
+                activity.intent.action = null
+            } else if (action == "com.routineflow.ACTION_CHECKIN_HABIT") {
+                selectedTab = 0 // Take user to Today's habits to check in
                 activity.intent.action = null
             }
         }
@@ -911,7 +1001,8 @@ private fun RoutineFlowApp(
                         onStartFocusOnTask = { task ->
                             activeFocusTask = task
                             selectedTab = 3
-                        }
+                        },
+                        onTriggerCelebration = { triggerCompletionCelebration() }
                     )
                     1 -> PlannerScreen(
                         tasks = tasks,
@@ -920,13 +1011,43 @@ private fun RoutineFlowApp(
                         onStartFocusOnTask = { task ->
                             activeFocusTask = task
                             selectedTab = 3
-                        }
+                        },
+                        onTriggerCelebration = { triggerCompletionCelebration() }
                     )
-                    2 -> GrowthScreen(state, tasks)
+                    2 -> GrowthScreen(
+                        state = state, 
+                        tasks = tasks,
+                        onOpenUnlockDialog = { showTreeUnlockDialog = true }
+                    )
                     3 -> FocusScreen(
                         tasks = tasks,
                         activeFocusTask = activeFocusTask,
-                        onClearFocusTask = { activeFocusTask = null }
+                        onClearFocusTask = { activeFocusTask = null },
+                        selectedMinutes = focusSelectedMinutes,
+                        onMinutesChanged = { m ->
+                            focusSelectedMinutes = m
+                            if (!focusIsRunning) focusSecondsLeft = m * 60
+                        },
+                        secondsLeft = focusSecondsLeft,
+                        isRunning = focusIsRunning,
+                        onToggleTimer = { 
+                            if (!focusIsRunning) {
+                                // Start
+                                focusTargetEndTime = System.currentTimeMillis() + focusSecondsLeft * 1000L
+                                focusIsRunning = true
+                            } else {
+                                // Pause
+                                focusIsRunning = false
+                            }
+                        },
+                        onResetTimer = {
+                            focusIsRunning = false
+                            focusSecondsLeft = focusSelectedMinutes * 60
+                        },
+                        completedSessions = focusCompletedSessions,
+                        ambientSounds = ambientSounds,
+                        selectedSound = focusSelectedSound,
+                        onSoundChanged = { focusSelectedSound = it }
                     )
                     else -> SettingsScreen(
                         darkMode = darkMode,
@@ -1023,6 +1144,69 @@ private fun RoutineFlowApp(
                                 contentDescription = "Close Settings",
                                 tint = MaterialTheme.colorScheme.onSurface
                             )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (showTreeUnlockDialog) {
+        Dialog(
+            onDismissRequest = { showTreeUnlockDialog = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.65f))
+                    .clickable { showTreeUnlockDialog = false }
+                    .padding(horizontal = 16.dp, vertical = 28.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(28.dp),
+                    color = MaterialTheme.colorScheme.surface,
+                    modifier = Modifier.fillMaxWidth().clickable(enabled = false) {}
+                ) {
+                    Column(
+                        modifier = Modifier.padding(24.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Text("Unlockable Trees", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                            IconButton(onClick = { showTreeUnlockDialog = false }) {
+                                Icon(Icons.Rounded.Close, contentDescription = "Close")
+                            }
+                        }
+                        Text("Earn XP from tasks to level up and unlock rare tree species.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        
+                        LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            val treeData = listOf(
+                                Triple("Emerald Pine", "Level 1+", "🌲"),
+                                Triple("Sakura Cherry Blossom", "Level 3+", "🌸"),
+                                Triple("Autumn Oak", "Level 5+", "🍁"),
+                                Triple("Golden Bonsai", "Level 10+", "✨")
+                            )
+                            val userLevel = (state.xp / 100) + 1
+                            items(treeData) { (name, reqLevel, emoji) ->
+                                val requiredLevelInt = reqLevel.filter { it.isDigit() }.toIntOrNull() ?: 1
+                                val unlocked = userLevel >= requiredLevelInt
+                                Surface(
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = if (unlocked) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHighest,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                                        Text(emoji, style = MaterialTheme.typography.headlineMedium)
+                                        Spacer(Modifier.width(16.dp))
+                                        Column {
+                                            Text(name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = if (unlocked) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface)
+                                            Text(reqLevel, style = MaterialTheme.typography.labelSmall, color = if (unlocked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -1656,7 +1840,8 @@ private fun TodayScreen(
     viewModel: RoutineViewModel,
     onOpenAdd: () -> Unit,
     onOpenTask: () -> Unit,
-    onStartFocusOnTask: ((TaskEntity) -> Unit)? = null
+    onStartFocusOnTask: ((TaskEntity) -> Unit)? = null,
+    onTriggerCelebration: () -> Unit = {}
 ) {
     AdaptiveLazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -1762,7 +1947,10 @@ private fun TodayScreen(
                 HabitCard(
                     habit = habit,
                     completed = habit.id in state.completedIds,
-                    onComplete = { viewModel.complete(habit.id) },
+                    onComplete = { 
+                        viewModel.complete(habit.id)
+                        if (habit.id !in state.completedIds) onTriggerCelebration()
+                    },
                     onArchive = { viewModel.archive(habit.id) }
                 )
             }
@@ -1865,9 +2053,21 @@ private fun DailyTreeCard(state: TodayUiState, tasks: List<TaskEntity>) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(140.dp)
+                    .height(200.dp)
                     .clip(RoundedCornerShape(18.dp))
-                    .background(MaterialTheme.colorScheme.surfaceContainerHighest),
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
+                                MaterialTheme.colorScheme.surfaceContainerHighest
+                            )
+                        )
+                    )
+                    .border(
+                        1.dp,
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+                        RoundedCornerShape(18.dp)
+                    ),
                 contentAlignment = Alignment.Center
             ) {
                 val infiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition()
@@ -1885,13 +2085,21 @@ private fun DailyTreeCard(state: TodayUiState, tasks: List<TaskEntity>) {
                     modifier = Modifier.fillMaxSize()
                 ) {
                     val centerX = size.width / 2f
-                    val centerY = size.height * 0.82f
+                    val centerY = size.height * 0.70f // Shifted slightly higher so shadow and tile fit perfectly
 
-                    drawIsoTile(centerX, centerY, 140f, 75f, Color(0xFF4ADE80), false)
+                    // Drop shadow under the tile
+                    drawOval(
+                        color = Color.Black.copy(alpha = 0.2f),
+                        topLeft = Offset(centerX - 150f, centerY - 60f),
+                        size = Size(300f, 160f)
+                    )
+
+                    drawIsoTile(centerX, centerY, 150f, 80f, Color(0xFF4ADE80), false)
+                    
                     if (animatedGrowth > 0f) {
-                        drawLowPoly3DTree(centerX, centerY, 1.4f, animatedGrowth, timeFloat)
+                        drawLowPoly3DTree(centerX, centerY, 2.0f, animatedGrowth, state.xp, timeFloat)
                     } else {
-                        drawLowPolyRock(centerX, centerY)
+                        drawLowPolyRock(centerX, centerY, 2.0f)
                     }
                 }
             }
@@ -1998,7 +2206,7 @@ private fun GardenDayChip(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun GrowthScreen(state: TodayUiState, tasks: List<TaskEntity>) {
+private fun GrowthScreen(state: TodayUiState, tasks: List<TaskEntity>, onOpenUnlockDialog: () -> Unit) {
     var subViewMode by remember { mutableIntStateOf(0) } // 0 = 3D World, 1 = Stats & XP
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -2086,7 +2294,7 @@ private fun GrowthScreen(state: TodayUiState, tasks: List<TaskEntity>) {
             if (view == 0) {
                 GardenWorldView(state, tasks)
             } else {
-                ProgressStatsView(state)
+                ProgressStatsView(state, onOpenUnlockDialog)
             }
         }
     }
@@ -2179,13 +2387,28 @@ private fun GardenWorldView(state: TodayUiState, tasks: List<TaskEntity>) {
             ) {
                 Box {
                     val primaryColor = MaterialTheme.colorScheme.primary
+                    
+                    val currentHour = LocalTime.now().hour
+                    val (skyColor, ambientLight) = when (currentHour) {
+                        in 6..16 -> Pair(Color(0xFF87CEEB), "day") // Bright Sky Blue
+                        in 17..19 -> Pair(Color(0xFFFDA403), "sunset") // Warm Sunset Orange
+                        else -> Pair(Color(0xFF0F172A), "night") // Deep Night Blue
+                    }
 
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(400.dp)
                             .clip(RoundedCornerShape(18.dp))
-                            .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                            .background(
+                                Brush.verticalGradient(
+                                    colors = listOf(
+                                        skyColor.copy(alpha = 0.8f),
+                                        skyColor.copy(alpha = 0.3f),
+                                        MaterialTheme.colorScheme.surfaceContainerHighest
+                                    )
+                                )
+                            )
                     ) {
                         val infiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition()
                     val timeFloat by infiniteTransition.animateFloat(
@@ -2343,7 +2566,7 @@ private fun GardenWorldView(state: TodayUiState, tasks: List<TaskEntity>) {
                                     drawIsoTile(screenX, screenY, localW * 1.414f, dynamicTileHeight * 1.414f, tileColor, isSelected)
 
                                     if (dayRatio > 0f) {
-                                        drawLowPoly3DTree(screenX, screenY, globalScale * 0.9f, dayRatio, timeFloat)
+                                        drawLowPoly3DTree(screenX, screenY, globalScale * 0.9f, dayRatio, state.xp, timeFloat)
                                     } else {
                                         drawLowPolyRock(screenX, screenY - 2f * globalScale, globalScale * 0.9f)
                                     }
@@ -2374,10 +2597,39 @@ private fun GardenWorldView(state: TodayUiState, tasks: List<TaskEntity>) {
                                     drawIsoTile(isoX, isoY, tileWidth * staticScale, tileHeight * staticScale, tileColor, isSelected)
 
                                     if (dayRatio > 0f) {
-                                        drawLowPoly3DTree(isoX, isoY, staticScale * 0.9f, dayRatio, timeFloat)
+                                        drawLowPoly3DTree(isoX, isoY, staticScale * 0.9f, dayRatio, state.xp, timeFloat)
                                     } else {
                                         drawLowPolyRock(isoX, isoY - 2f * staticScale, staticScale * 0.9f)
                                     }
+                                }
+                            }
+                            
+                            // Night Ambient Effects: Stars & Fireflies
+                            if (ambientLight == "night") {
+                                // Draw static stars in the sky
+                                for (i in 0..15) {
+                                    val sx = (i * 97 % size.width.toInt()).toFloat()
+                                    val sy = (i * 43 % (size.height / 2).toInt()).toFloat()
+                                    drawCircle(
+                                        color = Color.White.copy(alpha = 0.4f + 0.3f * kotlin.math.sin(timeFloat + i).toFloat()),
+                                        radius = 2f,
+                                        center = Offset(sx, sy)
+                                    )
+                                }
+                                // Draw floating fireflies around the garden
+                                for (i in 0..10) {
+                                    val fx = size.width / 2f + kotlin.math.sin(timeFloat * 0.5f + i) * size.width * 0.4f
+                                    val fy = size.height / 2f + kotlin.math.cos(timeFloat * 0.7f + i) * size.height * 0.3f
+                                    drawCircle(
+                                        color = Color(0xFFFDE047).copy(alpha = 0.6f + 0.4f * kotlin.math.sin(timeFloat * 2 + i).toFloat()),
+                                        radius = 3f + 1f * kotlin.math.sin(timeFloat * 3 + i).toFloat(),
+                                        center = Offset(fx, fy)
+                                    )
+                                    drawCircle(
+                                        color = Color(0xFFFDE047).copy(alpha = 0.2f),
+                                        radius = 8f,
+                                        center = Offset(fx, fy)
+                                    )
                                 }
                             }
                         }
@@ -2714,9 +2966,14 @@ private fun DrawScope.drawLowPoly3DTree(
     isoY: Float,
     scale: Float,
     completionRatio: Float,
+    userXp: Int,
     time: Float = 0f
 ) {
     if (completionRatio <= 0f) return // 0% tasks done -> NO TREE!
+
+    // Add bounce animation scaling based on time and completion ratio for organic breathing
+    val breathe = 1f + 0.05f * kotlin.math.sin(time * 2f + isoX * 0.1f).toFloat()
+    val animatedScale = scale * breathe
 
     val growthStage = when {
         completionRatio >= 1.0f -> 5 // 100% All tasks done
@@ -2725,10 +2982,43 @@ private fun DrawScope.drawLowPoly3DTree(
         completionRatio >= 0.25f -> 2 // 25%-49%
         else -> 1                      // 1%-24%
     }
+    
+    val level = (userXp / 100) + 1
+    
+    // Unlockable Tree Species based on Level
+    val (foliageTopColors, foliageLeftColors, foliageRightColors) = when {
+        level >= 10 -> Triple( // Level 10: Golden Bonsai
+            listOf(Color(0xFFFCD34D), Color(0xFFFBBF24), Color(0xFFF59E0B)),
+            listOf(Color(0xFFF59E0B), Color(0xFFD97706), Color(0xFFB45309)),
+            listOf(Color(0xFFD97706), Color(0xFFB45309), Color(0xFF92400E))
+        )
+        level >= 5 -> Triple( // Level 5: Autumn Oak
+            listOf(Color(0xFFFCA5A5), Color(0xFFF87171), Color(0xFFEF4444)),
+            listOf(Color(0xFFEF4444), Color(0xFFDC2626), Color(0xFFB91C1C)),
+            listOf(Color(0xFFDC2626), Color(0xFFB91C1C), Color(0xFF991B1B))
+        )
+        level >= 3 -> Triple( // Level 3: Sakura Cherry Blossom
+            listOf(Color(0xFFFBCFE8), Color(0xFFF9A8D4), Color(0xFFF472B6)),
+            listOf(Color(0xFFF472B6), Color(0xFFEC4899), Color(0xFFDB2777)),
+            listOf(Color(0xFFEC4899), Color(0xFFDB2777), Color(0xFFBE185D))
+        )
+        else -> Triple( // Level 1-2: Emerald Pine
+            listOf(Color(0xFF22C55E), Color(0xFF4ADE80), Color(0xFF86EFAC)),
+            listOf(Color(0xFF16A34A), Color(0xFF22C55E), Color(0xFF4ADE80)),
+            listOf(Color(0xFF15803D), Color(0xFF16A34A), Color(0xFF22C55E))
+        )
+    }
 
-    val trunkW = (5f + growthStage * 1.5f) * scale
-    val trunkH = (8f + growthStage * 3.5f) * scale
+    val trunkW = (5f + growthStage * 1.5f) * animatedScale
+    val trunkH = (8f + growthStage * 3.5f) * animatedScale
     val baseColor = Color(0xFF78350F) // Low-poly wood
+
+    // Draw tree drop shadow
+    drawOval(
+        color = Color.Black.copy(alpha = 0.35f),
+        topLeft = Offset(isoX - trunkW * 3f, isoY - trunkW * 1.5f),
+        size = Size(trunkW * 6f, trunkW * 3f)
+    )
 
     val trunkTopY = isoY - trunkH
 
@@ -2761,12 +3051,8 @@ private fun DrawScope.drawLowPoly3DTree(
     }
 
     var currentY = trunkTopY + 2f
-    var foliageW = (16f + growthStage * 4.5f) * scale
-    val foliageH = (10f + growthStage * 2.2f) * scale
-
-    val foliageTopColors = listOf(Color(0xFF22C55E), Color(0xFF4ADE80), Color(0xFF86EFAC))
-    val foliageLeftColors = listOf(Color(0xFF16A34A), Color(0xFF22C55E), Color(0xFF4ADE80))
-    val foliageRightColors = listOf(Color(0xFF15803D), Color(0xFF16A34A), Color(0xFF22C55E))
+    var foliageW = (16f + growthStage * 4.5f) * animatedScale
+    val foliageH = (10f + growthStage * 2.2f) * animatedScale
 
     for (tier in 0 until tierCount) {
         val fW = foliageW / 2f
@@ -2804,27 +3090,27 @@ private fun DrawScope.drawLowPoly3DTree(
 
         // Blooming Blossoms & Golden Fruits & Magic Fireflies on 100% Full Growth
         if (growthStage == 5 && tier == tierCount - 1) {
-            val blossomColor = Color(0xFFF472B6)
-            drawCircle(blossomColor, 4f * scale, Offset(isoX - fW * 0.45f, currentY - foliageH))
-            drawCircle(blossomColor, 4f * scale, Offset(isoX + fW * 0.45f, currentY - foliageH * 0.8f))
-            drawCircle(Color(0xFFFBBF24), 3.5f * scale, Offset(isoX, currentY - foliageH * 1.25f))
+            val blossomColor = if (level >= 10) Color.White else if (level >= 5) Color(0xFFFDE047) else Color(0xFFF472B6)
+            drawCircle(blossomColor, 4f * animatedScale, Offset(isoX - fW * 0.45f, currentY - foliageH))
+            drawCircle(blossomColor, 4f * animatedScale, Offset(isoX + fW * 0.45f, currentY - foliageH * 0.8f))
+            drawCircle(Color(0xFFFBBF24), 3.5f * animatedScale, Offset(isoX, currentY - foliageH * 1.25f))
 
             // Magic Fireflies swirling around the fully grown tree
             for (i in 0 until 5) {
                 val phaseOffset = i * (Math.PI / 2.5)
-                val hoverX = isoX + kotlin.math.cos(time + phaseOffset).toFloat() * 32f * scale
-                val hoverY = currentY - foliageH - 10f * scale + kotlin.math.sin(time * 1.5 + phaseOffset).toFloat() * 12f * scale
+                val hoverX = isoX + kotlin.math.cos(time + phaseOffset).toFloat() * 32f * animatedScale
+                val hoverY = currentY - foliageH - 10f * animatedScale + kotlin.math.sin(time * 1.5 + phaseOffset).toFloat() * 12f * animatedScale
                 
                 // Outer Glow
                 drawCircle(
                     color = Color.Yellow.copy(alpha = 0.3f),
-                    radius = 3.5f * scale,
+                    radius = 3.5f * animatedScale,
                     center = Offset(hoverX, hoverY)
                 )
                 // Inner Core
                 drawCircle(
                     color = Color.White.copy(alpha = 0.9f),
-                    radius = 1.2f * scale,
+                    radius = 1.2f * animatedScale,
                     center = Offset(hoverX, hoverY)
                 )
             }
@@ -2841,6 +3127,14 @@ private fun DrawScope.drawLowPoly3DTree(
 private fun DrawScope.drawLowPolyRock(isoX: Float, isoY: Float, scale: Float = 1.0f) {
     val rockW = 10f * scale
     val rockH = 8f * scale
+
+    // Draw rock shadow
+    drawOval(
+        color = Color.Black.copy(alpha = 0.4f),
+        topLeft = Offset(isoX - rockW * 1.5f, isoY - rockW * 0.75f),
+        size = Size(rockW * 3f, rockW * 1.5f)
+    )
+
     val rockTop = Path().apply {
         moveTo(isoX, isoY - rockH)
         lineTo(isoX + rockW / 2, isoY - rockH / 2)
@@ -3192,46 +3486,56 @@ private fun CircularFocusDial(
 @Composable
 private fun FocusScreen(
     tasks: List<TaskEntity>,
-    activeFocusTask: TaskEntity? = null,
-    onClearFocusTask: () -> Unit = {}
+    activeFocusTask: TaskEntity?,
+    onClearFocusTask: () -> Unit,
+    selectedMinutes: Int,
+    onMinutesChanged: (Int) -> Unit,
+    secondsLeft: Int,
+    isRunning: Boolean,
+    onToggleTimer: () -> Unit,
+    onResetTimer: () -> Unit,
+    completedSessions: Int,
+    ambientSounds: List<String>,
+    selectedSound: String,
+    onSoundChanged: (String) -> Unit
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
-    val nextTask = tasks
-        .filterNot { it.completed }
-        .minByOrNull { it.estimatedMinutes ?: Int.MAX_VALUE }
-
-    var selectedMinutes by remember(activeFocusTask) {
-        mutableIntStateOf(activeFocusTask?.estimatedMinutes?.coerceAtLeast(1) ?: 25)
-    }
-    var secondsLeft by remember(activeFocusTask) {
-        mutableIntStateOf((activeFocusTask?.estimatedMinutes?.coerceAtLeast(1) ?: 25) * 60)
-    }
-    var isRunning by remember { mutableStateOf(false) }
-    var completedSessions by remember { mutableIntStateOf(0) }
-    var showCustomDialog by remember { mutableStateOf(false) }
-    var customInputText by remember { mutableStateOf("") }
     val haptics = LocalHapticFeedback.current
 
-    androidx.compose.runtime.LaunchedEffect(isRunning, secondsLeft) {
-        FocusNotificationHelper.updateFocusNotification(context, isRunning, secondsLeft, selectedMinutes)
-        if (isRunning && secondsLeft > 0) {
-            // Mobile vibrates every 10 minutes during countdown (e.g. at 50m, 40m, 30m, 20m, 10m remaining)
-            if (secondsLeft < (selectedMinutes * 60) && secondsLeft % (10 * 60) == 0) {
-                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                val vibrator = context.getSystemService(android.content.Context.VIBRATOR_SERVICE) as? android.os.Vibrator
-                if (android.os.Build.VERSION.SDK_INT >= 26) {
-                    vibrator?.vibrate(android.os.VibrationEffect.createOneShot(80L, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
-                } else {
-                    vibrator?.vibrate(80L)
-                }
-            }
-            kotlinx.coroutines.delay(1000L)
-            secondsLeft--
-        } else if (isRunning && secondsLeft == 0) {
-            isRunning = false
-            completedSessions++
-            secondsLeft = selectedMinutes * 60
-            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+    // Media Player for Ambient Sounds
+    val exoPlayer = remember {
+        androidx.media3.exoplayer.ExoPlayer.Builder(context).build().apply {
+            repeatMode = androidx.media3.common.Player.REPEAT_MODE_ALL
+        }
+    }
+
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        onDispose {
+            exoPlayer.release()
+        }
+    }
+
+    // React to Sound and Timer State
+    androidx.compose.runtime.LaunchedEffect(selectedSound, isRunning) {
+        if (!isRunning || selectedSound == "Silent") {
+            exoPlayer.pause()
+            return@LaunchedEffect
+        }
+        
+        // Use reliable Google Actions public sound library URLs
+        val url = when (selectedSound) {
+            "Rainfall" -> "https://actions.google.com/sounds/v1/weather/rain_on_roof.ogg"
+            "Forest" -> "https://actions.google.com/sounds/v1/water/stream_and_birds.ogg"
+            "Cafe" -> "https://actions.google.com/sounds/v1/crowds/restaurant_ambience.ogg"
+            "Deep Space" -> "https://actions.google.com/sounds/v1/science_fiction/deep_space_engine_rumble.ogg"
+            else -> null
+        }
+        
+        if (url != null) {
+            val mediaItem = androidx.media3.common.MediaItem.fromUri(url)
+            exoPlayer.setMediaItem(mediaItem)
+            exoPlayer.prepare()
+            exoPlayer.play()
         }
     }
 
@@ -3246,6 +3550,9 @@ private fun FocusScreen(
     val minutes = secondsLeft / 60
     val seconds = secondsLeft % 60
     val timeFormatted = String.format(Locale.getDefault(), "%02d:%02d", minutes, seconds)
+
+    var showCustomDialog by remember { mutableStateOf(false) }
+    var customInputText by remember { mutableStateOf("") }
 
     AdaptiveLazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -3311,6 +3618,34 @@ private fun FocusScreen(
                         }
                     }
 
+                    // Quick Duration Presets
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        listOf(15, 25, 45, 60).forEach { preset ->
+                            Surface(
+                                shape = CircleShape,
+                                color = if (selectedMinutes == preset) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHighest,
+                                modifier = Modifier
+                                    .clip(CircleShape)
+                                    .clickable(enabled = !isRunning) {
+                                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        onMinutesChanged(preset)
+                                    }
+                            ) {
+                                Text(
+                                    text = "${preset}m",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (selectedMinutes == preset) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                                )
+                            }
+                        }
+                    }
+
                     val infiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition()
                     val pulse by infiniteTransition.animateFloat(
                         initialValue = 0.95f,
@@ -3352,8 +3687,7 @@ private fun FocusScreen(
                             minutes = if (isRunning) (secondsLeft / 60).coerceAtLeast(1) else selectedMinutes,
                             isRunning = isRunning,
                             onMinutesChanged = { newMins ->
-                                selectedMinutes = newMins
-                                secondsLeft = newMins * 60
+                                onMinutesChanged(newMins)
                             }
                         )
 
@@ -3390,7 +3724,7 @@ private fun FocusScreen(
                         Button(
                             onClick = {
                                 haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                isRunning = !isRunning
+                                onToggleTimer()
                             },
                             shape = RoundedCornerShape(16.dp),
                             colors = ButtonDefaults.buttonColors(
@@ -3407,13 +3741,71 @@ private fun FocusScreen(
                         }
 
                         TextButton(
-                            onClick = {
-                                isRunning = false
-                                secondsLeft = selectedMinutes * 60
-                                FocusNotificationHelper.updateFocusNotification(context, false, 0, selectedMinutes)
-                            }
+                            onClick = onResetTimer
                         ) {
                             Text("Reset", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+
+                    // Ambient Sound Selector
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text(
+                            text = "Ambient Sounds",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            ambientSounds.forEach { sound ->
+                                val isSoundSelected = selectedSound == sound
+                                Surface(
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = if (isSoundSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHighest,
+                                    border = BorderStroke(1.dp, if (isSoundSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent),
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(16.dp))
+                                        .clickable {
+                                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                            onSoundChanged(sound)
+                                        }
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        val icon = when (sound) {
+                                            "Silent" -> Icons.AutoMirrored.Rounded.VolumeOff
+                                            "Rainfall" -> Icons.Rounded.WaterDrop
+                                            "Forest" -> Icons.Rounded.Park
+                                            "Cafe" -> Icons.Rounded.LocalCafe
+                                            "Deep Space" -> Icons.Rounded.Stars
+                                            else -> Icons.AutoMirrored.Rounded.VolumeOff
+                                        }
+                                        Icon(
+                                            icon,
+                                            contentDescription = sound,
+                                            modifier = Modifier.size(16.dp),
+                                            tint = if (isSoundSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        Text(
+                                            text = sound,
+                                            style = MaterialTheme.typography.labelMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (isSoundSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
 
@@ -3463,9 +3855,7 @@ private fun FocusScreen(
                                 Button(
                                     onClick = {
                                         val mins = customInputText.toIntOrNull()?.coerceIn(1, 60) ?: 25
-                                        selectedMinutes = mins
-                                        secondsLeft = mins * 60
-                                        isRunning = false
+                                        onMinutesChanged(mins)
                                         showCustomDialog = false
                                     },
                                     shape = RoundedCornerShape(12.dp)
@@ -3488,6 +3878,10 @@ private fun FocusScreen(
         }
 
         item {
+            val nextSuggestedTask = tasks
+                .filterNot { it.completed }
+                .minByOrNull { it.estimatedMinutes ?: Int.MAX_VALUE }
+                
             GlassSurface(
                 modifier = Modifier.fillMaxWidth(),
                 cornerRadius = LiquidGlassTokens.cardRadius
@@ -3500,12 +3894,12 @@ private fun FocusScreen(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = nextTask?.title ?: "Your task list is clear",
+                            text = nextSuggestedTask?.title ?: "Your task list is clear",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.SemiBold
                         )
                         Text(
-                            text = nextTask?.let { "${it.estimatedMinutes ?: 0} minutes · ${it.category}" }
+                            text = nextSuggestedTask?.let { "${it.estimatedMinutes ?: 0} minutes · ${it.category}" }
                                 ?: "Enjoy the space or add something new.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -3727,7 +4121,8 @@ private fun TaskSection(
     tasks: List<TaskEntity>,
     viewModel: RoutineViewModel,
     onOpenTask: () -> Unit,
-    onStartFocusOnTask: ((TaskEntity) -> Unit)? = null
+    onStartFocusOnTask: ((TaskEntity) -> Unit)? = null,
+    onTriggerCelebration: () -> Unit = {}
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(
@@ -3783,7 +4178,10 @@ private fun TaskSection(
             tasks.take(4).forEach { task ->
                 TaskCard(
                     task = task,
-                    onComplete = { viewModel.setTaskCompleted(task.id, !task.completed) },
+                    onComplete = { 
+                        viewModel.setTaskCompleted(task.id, !task.completed) 
+                        if (!task.completed) onTriggerCelebration()
+                    },
                     onArchive = { viewModel.archiveTask(task.id) },
                     onStartFocus = if (onStartFocusOnTask != null) { { onStartFocusOnTask(task) } } else null
                 )
@@ -3899,7 +4297,8 @@ private fun AllTasksScreen(
     tasks: List<TaskEntity>,
     viewModel: RoutineViewModel,
     onOpenTask: () -> Unit,
-    onStartFocusOnTask: ((TaskEntity) -> Unit)? = null
+    onStartFocusOnTask: ((TaskEntity) -> Unit)? = null,
+    onTriggerCelebration: () -> Unit = {}
 ) {
     var selectedCategory by remember { mutableStateOf("All") }
     val categories = remember(tasks) {
@@ -4004,7 +4403,10 @@ private fun AllTasksScreen(
                 Box(Modifier.animateItem()) {
                     TaskCard(
                         task = task,
-                        onComplete = { viewModel.setTaskCompleted(task.id, !task.completed) },
+                        onComplete = { 
+                            viewModel.setTaskCompleted(task.id, !task.completed) 
+                            if (!task.completed) onTriggerCelebration()
+                        },
                         onArchive = { viewModel.archiveTask(task.id) },
                         onStartFocus = if (onStartFocusOnTask != null) { { onStartFocusOnTask(task) } } else null
                     )
@@ -4020,7 +4422,8 @@ private fun PlannerScreen(
     tasks: List<TaskEntity>,
     viewModel: RoutineViewModel,
     onOpenTask: () -> Unit,
-    onStartFocusOnTask: ((TaskEntity) -> Unit)? = null
+    onStartFocusOnTask: ((TaskEntity) -> Unit)? = null,
+    onTriggerCelebration: () -> Unit = {}
 ) {
     var subViewMode by remember { mutableIntStateOf(0) } // 0 = List View, 1 = Timeline View
 
@@ -4126,7 +4529,8 @@ private fun PlannerScreen(
 @Composable
 private fun TaskTimelineView(
     tasks: List<TaskEntity>,
-    onStartFocusOnTask: ((TaskEntity) -> Unit)? = null
+    onStartFocusOnTask: ((TaskEntity) -> Unit)? = null,
+    onTriggerCelebration: () -> Unit = {}
 ) {
     val today = LocalDate.now()
     val plannerTasks = remember(tasks, today) {
@@ -4385,7 +4789,7 @@ private fun PlannerBlockCard(
 }
 
 @Composable
-private fun ProgressStatsView(state: TodayUiState) {
+private fun ProgressStatsView(state: TodayUiState, onOpenUnlockDialog: () -> Unit) {
     val level = (state.xp / 100) + 1
     val levelProgress = (state.xp % 100) / 100f
     val totalCheckIns = state.activity.values.sum()
@@ -4400,8 +4804,26 @@ private fun ProgressStatsView(state: TodayUiState) {
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         item {
+            val interactionSource = remember { MutableInteractionSource() }
+            val isPressed by interactionSource.collectIsPressedAsState()
+            val scale by animateFloatAsState(
+                targetValue = if (isPressed) 0.97f else 1f,
+                animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+                label = "level_card_scale"
+            )
+
             GlassSurface(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .graphicsLayer {
+                        scaleX = scale
+                        scaleY = scale
+                    }
+                    .clickable(
+                        interactionSource = interactionSource,
+                        indication = null,
+                        onClick = onOpenUnlockDialog
+                    ),
                 cornerRadius = LiquidGlassTokens.cardRadius,
                 highlighted = true
             ) {
