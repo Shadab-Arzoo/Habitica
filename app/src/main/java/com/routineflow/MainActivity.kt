@@ -4645,21 +4645,52 @@ private fun HabitCard(
                     color = if (completed) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
                     textDecoration = if (completed) TextDecoration.LineThrough else TextDecoration.None
                 )
-                Spacer(Modifier.height(2.dp))
-                AssistChip(
-                    onClick = {},
-                    label = {
-                        Text(
-                            text = habit.category,
-                            style = MaterialTheme.typography.labelSmall
+                Spacer(Modifier.height(4.dp))
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    AssistChip(
+                        onClick = {},
+                        label = {
+                            Text(
+                                text = habit.category,
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                        },
+                        border = null,
+                        colors = AssistChipDefaults.assistChipColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                            labelColor = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                    },
-                    border = null,
-                    colors = AssistChipDefaults.assistChipColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                        labelColor = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                )
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
+                    ) {
+                        Text(
+                            text = "💧 +25 Drops",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                        )
+                    }
+                    if (completed) {
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.6f)
+                        ) {
+                            Text(
+                                text = "🔥 Active Streak",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                            )
+                        }
+                    }
+                }
             }
             Crossfade(targetState = completed, label = "habit_completion") { isComplete ->
                 if (isComplete) {
@@ -4943,11 +4974,18 @@ private fun AllTasksScreen(
     onTriggerCelebration: () -> Unit = {}
 ) {
     var selectedCategory by remember { mutableStateOf("All") }
+    var taskFilter by remember { mutableStateOf("All") }
     val categories = remember(tasks) {
         listOf("All") + tasks.map { it.category }.distinct().filter { it.isNotBlank() }
     }
-    val filteredTasks = remember(tasks, selectedCategory) {
-        if (selectedCategory == "All") tasks else tasks.filter { it.category == selectedCategory }
+    val filteredTasks = remember(tasks, selectedCategory, taskFilter) {
+        val catTasks = if (selectedCategory == "All") tasks else tasks.filter { it.category == selectedCategory }
+        when (taskFilter) {
+            "Pending ⏳" -> catTasks.filter { !it.completed }
+            "High Priority 🔴" -> catTasks.filter { it.priority == 3 }
+            "Quick Wins <15m ⚡" -> catTasks.filter { (it.estimatedMinutes ?: 25) <= 15 }
+            else -> catTasks
+        }
     }
 
     AdaptiveLazyColumn(
@@ -4970,6 +5008,28 @@ private fun AllTasksScreen(
                 }
                 FilledIconButton(onClick = onOpenTask) {
                     Icon(Icons.Rounded.Add, contentDescription = "Add task")
+                }
+            }
+        }
+
+        item {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                listOf("All", "Pending ⏳", "High Priority 🔴", "Quick Wins <15m ⚡").forEach { filterOpt ->
+                    FilterChip(
+                        selected = taskFilter == filterOpt,
+                        onClick = { taskFilter = filterOpt },
+                        label = { Text(filterOpt) },
+                        shape = RoundedCornerShape(12.dp),
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+                            selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                    )
                 }
             }
         }
