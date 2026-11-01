@@ -51,6 +51,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -108,6 +109,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -352,6 +354,8 @@ private fun RoutineFlowApp(
     var showAddTask by remember { mutableStateOf(false) }
     var showSettingsDialog by remember { mutableStateOf(false) }
     var showTreeUnlockDialog by remember { mutableStateOf(false) }
+    var showRestoreDialog by remember { mutableStateOf(false) }
+    var restoreInputText by remember { mutableStateOf("") }
     var avatarClickCount by remember { mutableIntStateOf(0) }
     
     // -- Global Focus Timer State (Survives Tab Switches & Backgrounding) --
@@ -426,7 +430,7 @@ private fun RoutineFlowApp(
                     focusIsRunning = false
                     focusCompletedSessions++
                     FocusNotificationHelper.updateFocusNotification(context, false, 0, focusSelectedMinutes)
-                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    triggerCompletionCelebration()
                     
                     // Play Alarm Ringtone
                     try {
@@ -1032,6 +1036,11 @@ private fun RoutineFlowApp(
                         tasks = tasks,
                         activeFocusTask = activeFocusTask,
                         onClearFocusTask = { activeFocusTask = null },
+                        onSelectTaskForFocus = { task ->
+                            activeFocusTask = task
+                            focusSelectedMinutes = task.estimatedMinutes?.coerceAtLeast(1) ?: 25
+                            if (!focusIsRunning) focusSecondsLeft = focusSelectedMinutes * 60
+                        },
                         selectedMinutes = focusSelectedMinutes,
                         onMinutesChanged = { m ->
                             focusSelectedMinutes = m
@@ -1041,11 +1050,9 @@ private fun RoutineFlowApp(
                         isRunning = focusIsRunning,
                         onToggleTimer = { 
                             if (!focusIsRunning) {
-                                // Start
                                 focusTargetEndTime = System.currentTimeMillis() + focusSecondsLeft * 1000L
                                 focusIsRunning = true
                             } else {
-                                // Pause
                                 focusIsRunning = false
                             }
                         },
@@ -1137,7 +1144,17 @@ private fun RoutineFlowApp(
                             reducedMotion = reducedMotion,
                             onReducedMotionChange = onReducedMotionChange,
                             appLockEnabled = appLockEnabled,
-                            onAppLockChange = onAppLockChange
+                            onAppLockChange = onAppLockChange,
+                            onExportBackup = {
+                                val backupJson = viewModel.exportBackupJson()
+                                val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+                                val clip = android.content.ClipData.newPlainText("RoutineFlow Backup", backupJson)
+                                clipboard?.setPrimaryClip(clip)
+                                android.widget.Toast.makeText(context, "Backup JSON copied to clipboard!", android.widget.Toast.LENGTH_LONG).show()
+                            },
+                            onRestoreBackup = {
+                                showRestoreDialog = true
+                            }
                         )
                         IconButton(
                             onClick = {
@@ -1296,6 +1313,78 @@ private fun RoutineFlowApp(
                                         }
                                     }
                                 }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (showRestoreDialog) {
+        Dialog(
+            onDismissRequest = { showRestoreDialog = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.65f))
+                    .clickable { showRestoreDialog = false }
+                    .padding(horizontal = 16.dp, vertical = 28.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(28.dp),
+                    color = MaterialTheme.colorScheme.surface,
+                    modifier = Modifier.fillMaxWidth().clickable(enabled = false) {}
+                ) {
+                    Column(
+                        modifier = Modifier.padding(24.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Restore Backup", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                            IconButton(onClick = { showRestoreDialog = false }) {
+                                Icon(Icons.Rounded.Close, contentDescription = "Close")
+                            }
+                        }
+                        Text("Paste your backup JSON string below to restore habits, tasks, XP, and 3D tree species.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        
+                        GlassInput(
+                            value = restoreInputText,
+                            onValueChange = { restoreInputText = it },
+                            label = "Backup JSON",
+                            placeholder = "Paste JSON here..."
+                        )
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            TextButton(onClick = { showRestoreDialog = false }) {
+                                Text("Cancel")
+                            }
+                            Spacer(Modifier.width(8.dp))
+                            Button(
+                                onClick = {
+                                    val success = viewModel.restoreBackupJson(restoreInputText)
+                                    if (success) {
+                                        android.widget.Toast.makeText(context, "Data restored successfully!", android.widget.Toast.LENGTH_SHORT).show()
+                                        showRestoreDialog = false
+                                        restoreInputText = ""
+                                    } else {
+                                        android.widget.Toast.makeText(context, "Invalid Backup JSON!", android.widget.Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Text("Restore Now")
                             }
                         }
                     }
@@ -3920,6 +4009,7 @@ private fun FocusScreen(
     tasks: List<TaskEntity>,
     activeFocusTask: TaskEntity?,
     onClearFocusTask: () -> Unit,
+    onSelectTaskForFocus: (TaskEntity) -> Unit = {},
     selectedMinutes: Int,
     onMinutesChanged: (Int) -> Unit,
     secondsLeft: Int,
@@ -3933,6 +4023,7 @@ private fun FocusScreen(
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val haptics = LocalHapticFeedback.current
+    var showSelectTaskDialog by remember { mutableStateOf(false) }
 
     // Media Player for Ambient Sounds
     val exoPlayer = remember {
@@ -4047,6 +4138,16 @@ private fun FocusScreen(
                                     )
                                 }
                             }
+                        }
+                    } else if (tasks.any { !it.completed }) {
+                        OutlinedButton(
+                            onClick = { showSelectTaskDialog = true },
+                            shape = RoundedCornerShape(16.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("Select Task from Planner", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
                         }
                     }
 
@@ -4253,54 +4354,6 @@ private fun FocusScreen(
             }
         }
 
-        if (showCustomDialog) {
-            item {
-                Dialog(onDismissRequest = { showCustomDialog = false }) {
-                    GlassSurface(
-                        modifier = Modifier.fillMaxWidth().padding(16.dp),
-                        cornerRadius = 24.dp
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(20.dp),
-                            verticalArrangement = Arrangement.spacedBy(16.dp)
-                        ) {
-                            Text(
-                                "Set Focus Duration (Max 60m)",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                            GlassInput(
-                                value = customInputText,
-                                onValueChange = { customInputText = it.filter { char -> char.isDigit() }.take(2) },
-                                label = "Minutes (1 - 60)",
-                                placeholder = "e.g. 25"
-                            )
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.End,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                TextButton(onClick = { showCustomDialog = false }) {
-                                    Text("Cancel")
-                                }
-                                Spacer(Modifier.width(8.dp))
-                                Button(
-                                    onClick = {
-                                        val mins = customInputText.toIntOrNull()?.coerceIn(1, 60) ?: 25
-                                        onMinutesChanged(mins)
-                                        showCustomDialog = false
-                                    },
-                                    shape = RoundedCornerShape(12.dp)
-                                ) {
-                                    Text("Set")
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
         item {
             Text(
                 text = "Suggested next task",
@@ -4310,7 +4363,7 @@ private fun FocusScreen(
         }
 
         item {
-            val nextSuggestedTask = tasks
+            val nextSuggestedTask = activeFocusTask ?: tasks
                 .filterNot { it.completed }
                 .minByOrNull { it.estimatedMinutes ?: Int.MAX_VALUE }
                 
@@ -4343,6 +4396,110 @@ private fun FocusScreen(
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(24.dp)
                     )
+                }
+            }
+        }
+    }
+
+    if (showCustomDialog) {
+        Dialog(onDismissRequest = { showCustomDialog = false }) {
+            GlassSurface(
+                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                cornerRadius = 24.dp
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Text(
+                        "Set Focus Duration (Max 60m)",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    GlassInput(
+                        value = customInputText,
+                        onValueChange = { customInputText = it.filter { char -> char.isDigit() }.take(2) },
+                        label = "Minutes (1 - 60)",
+                        placeholder = "e.g. 25"
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TextButton(onClick = { showCustomDialog = false }) {
+                            Text("Cancel")
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        Button(
+                            onClick = {
+                                val mins = customInputText.toIntOrNull()?.coerceIn(1, 60) ?: 25
+                                onMinutesChanged(mins)
+                                showCustomDialog = false
+                            },
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text("Set")
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (showSelectTaskDialog) {
+        Dialog(
+            onDismissRequest = { showSelectTaskDialog = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.65f))
+                    .clickable { showSelectTaskDialog = false }
+                    .padding(horizontal = 16.dp, vertical = 28.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(28.dp),
+                    color = MaterialTheme.colorScheme.surface,
+                    modifier = Modifier.fillMaxWidth().clickable(enabled = false) {}
+                ) {
+                    Column(
+                        modifier = Modifier.padding(24.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Text("Select Task for Focus", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                            IconButton(onClick = { showSelectTaskDialog = false }) {
+                                Icon(Icons.Rounded.Close, contentDescription = "Close")
+                            }
+                        }
+                        
+                        val openTasks = tasks.filterNot { it.completed }
+                        LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.heightIn(max = 360.dp)) {
+                            items(openTasks) { task ->
+                                Surface(
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            onSelectTaskForFocus(task)
+                                            showSelectTaskDialog = false
+                                        }
+                                ) {
+                                    Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(task.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                            Text("${task.estimatedMinutes ?: 25}m · ${task.category}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        }
+                                        Icon(Icons.Rounded.SelfImprovement, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -4579,6 +4736,26 @@ private fun TaskSection(
                 Spacer(Modifier.width(4.dp))
                 Text("Add task")
             }
+        }
+        if (tasks.isNotEmpty()) {
+            val completedCount = tasks.count { it.completed }
+            val taskProgress = (completedCount.toFloat() / tasks.size).coerceIn(0f, 1f)
+            val animatedTaskProgress by animateFloatAsState(
+                targetValue = taskProgress,
+                animationSpec = spring(stiffness = Spring.StiffnessLow),
+                label = "task_progress"
+            )
+
+            LinearProgressIndicator(
+                progress = { animatedTaskProgress },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(6.dp)
+                    .clip(CircleShape),
+                color = MaterialTheme.colorScheme.primary,
+                trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                strokeCap = StrokeCap.Round
+            )
         }
         if (tasks.isEmpty()) {
             GlassSurface(
@@ -5805,7 +5982,9 @@ private fun SettingsScreen(
     reducedMotion: Boolean,
     onReducedMotionChange: (Boolean) -> Unit,
     appLockEnabled: Boolean,
-    onAppLockChange: (Boolean) -> Unit
+    onAppLockChange: (Boolean) -> Unit,
+    onExportBackup: () -> Unit = {},
+    onRestoreBackup: () -> Unit = {}
 ) {
     AdaptiveLazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -5945,6 +6124,50 @@ private fun SettingsScreen(
                     },
                     colors = ListItemDefaults.colors(containerColor = Color.Transparent)
                 )
+            }
+        }
+        item {
+            GlassSurface(
+                modifier = Modifier.fillMaxWidth(),
+                cornerRadius = 22.dp,
+                highlighted = true,
+                elevation = 8.dp
+            ) {
+                Column(
+                    modifier = Modifier.padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        "Data Backup & Restore",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        "Export your habits, tasks, XP, and 3D tree progress so you never lose data on app updates.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Button(
+                            onClick = onExportBackup,
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text("Export Backup")
+                        }
+                        OutlinedButton(
+                            onClick = onRestoreBackup,
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text("Restore Data")
+                        }
+                    }
+                }
             }
         }
     }

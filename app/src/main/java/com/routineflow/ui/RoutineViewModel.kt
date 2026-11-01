@@ -180,4 +180,53 @@ private data class Flow2Data(
     fun archiveTask(taskId: Long) {
         viewModelScope.launch { taskRepository.archive(taskId) }
     }
+
+    fun exportBackupJson(): String {
+        val habits = state.value.habits
+        val xp = state.value.xp
+        val equippedTree = state.value.equippedTree
+        val json = org.json.JSONObject().apply {
+            put("xp", xp)
+            put("equippedTree", equippedTree)
+            val habitsArr = org.json.JSONArray()
+            habits.forEach { habit ->
+                habitsArr.put(org.json.JSONObject().apply {
+                    put("name", habit.name)
+                    put("category", habit.category)
+                    put("emoji", habit.emoji)
+                    put("reminderMinutes", habit.reminderMinutes ?: -1)
+                })
+            }
+            put("habits", habitsArr)
+        }
+        return json.toString(2)
+    }
+
+    fun restoreBackupJson(jsonString: String): Boolean {
+        return try {
+            val json = org.json.JSONObject(jsonString)
+            val xp = json.optInt("xp", 0)
+            val equippedTree = json.optString("equippedTree", "Auto")
+            _bonusXp.value = xp
+            _equippedTree.value = equippedTree
+            
+            val habitsArr = json.optJSONArray("habits")
+            if (habitsArr != null) {
+                viewModelScope.launch {
+                    for (i in 0 until habitsArr.length()) {
+                        val obj = habitsArr.getJSONObject(i)
+                        val name = obj.getString("name")
+                        val category = obj.optString("category", "General")
+                        val emoji = obj.optString("emoji", "✨")
+                        val remMins = obj.optInt("reminderMinutes", -1)
+                        addHabit(name, category, emoji, if (remMins != -1) remMins else null)
+                    }
+                }
+            }
+            true
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
 }
