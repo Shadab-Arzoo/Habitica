@@ -2566,6 +2566,7 @@ private fun DailyTreeCard(state: TodayUiState, tasks: List<TaskEntity>) {
                     label = "magic_particles"
                 )
 
+                val reusablePath = remember { Path() }
                 Canvas(
                     modifier = Modifier.fillMaxSize()
                 ) {
@@ -2579,12 +2580,12 @@ private fun DailyTreeCard(state: TodayUiState, tasks: List<TaskEntity>) {
                         size = Size(300f, 160f)
                     )
 
-                    drawIsoTile(centerX, centerY, 150f, 80f, Color(0xFF4ADE80), false)
+                    drawIsoTile(centerX, centerY, 150f, 80f, Color(0xFF4ADE80), false, reusablePath)
                     
                     if (animatedGrowth > 0f) {
-                        drawLowPoly3DTree(centerX, centerY, 2.0f, animatedGrowth, state.xp, state.equippedTree, timeFloat)
+                        drawLowPoly3DTree(centerX, centerY, 2.0f, animatedGrowth, state.xp, state.equippedTree, timeFloat, reusablePath)
                     } else {
-                        drawLowPolyRock(centerX, centerY, 2.0f)
+                        drawLowPolyRock(centerX, centerY, 2.0f, reusablePath)
                     }
                 }
             }
@@ -2997,6 +2998,7 @@ private fun GardenWorldView(state: TodayUiState, tasks: List<TaskEntity>) {
                                     )
                                 }
                         ) {
+                            val reusablePath = androidx.compose.ui.graphics.Path()
                             val tileWidth = size.width / 5f
                             val tileHeight = tileWidth * 0.5f
                             
@@ -3068,12 +3070,12 @@ private fun GardenWorldView(state: TodayUiState, tasks: List<TaskEntity>) {
                                     
                                     val thickness = 10f * globalScale * sinPitch
 
-                                    drawProjected3DTile(corners, thickness, tileColor, isSelected)
+                                    drawProjected3DTile(corners, thickness, tileColor, isSelected, reusablePath)
 
                                     if (dayRatio > 0f) {
-                                        drawLowPoly3DTree(screenX, screenY, globalScale * 0.9f, dayRatio, state.xp, state.equippedTree, timeFloat)
+                                        drawLowPoly3DTree(screenX, screenY, globalScale * 0.9f, dayRatio, state.xp, state.equippedTree, timeFloat, reusablePath)
                                     } else {
-                                        drawLowPolyRock(screenX, screenY - 2f * globalScale, globalScale * 0.9f)
+                                        drawLowPolyRock(screenX, screenY - 2f * globalScale, globalScale * 0.9f, reusablePath)
                                     }
                                 }
                             } else {
@@ -3099,12 +3101,12 @@ private fun GardenWorldView(state: TodayUiState, tasks: List<TaskEntity>) {
                                         else -> Color(0xFF1E293B)
                                     }
 
-                                    drawIsoTile(isoX, isoY, tileWidth * staticScale, tileHeight * staticScale, tileColor, isSelected)
+                                    drawIsoTile(isoX, isoY, tileWidth * staticScale, tileHeight * staticScale, tileColor, isSelected, reusablePath)
 
                                     if (dayRatio > 0f) {
-                                        drawLowPoly3DTree(isoX, isoY, staticScale * 0.9f, dayRatio, state.xp, state.equippedTree, timeFloat)
+                                        drawLowPoly3DTree(isoX, isoY, staticScale * 0.9f, dayRatio, state.xp, state.equippedTree, timeFloat, reusablePath)
                                     } else {
-                                        drawLowPolyRock(isoX, isoY - 2f * staticScale, staticScale * 0.9f)
+                                        drawLowPolyRock(isoX, isoY - 2f * staticScale, staticScale * 0.9f, reusablePath)
                                     }
                                 }
                             }
@@ -3449,7 +3451,8 @@ private fun DrawScope.drawIsoTile(
     tileWidth: Float,
     tileHeight: Float,
     tileColor: Color,
-    isSelected: Boolean
+    isSelected: Boolean,
+    path: androidx.compose.ui.graphics.Path
 ) {
     val hW = tileWidth / 2f
     val hH = tileHeight / 2f
@@ -3498,7 +3501,8 @@ private fun DrawScope.drawProjected3DTile(
     corners: List<Offset>,
     thickness: Float,
     tileColor: Color,
-    isSelected: Boolean
+    isSelected: Boolean,
+    path: androidx.compose.ui.graphics.Path
 ) {
     if (corners.size < 4) return
     val p0 = corners[0]
@@ -3567,8 +3571,9 @@ private fun DrawScope.drawLowPoly3DTree(
     scale: Float,
     completionRatio: Float,
     userXp: Int,
-    equippedTree: String = "Auto",
-    time: Float = 0f
+    equippedTree: String,
+    time: Float,
+    path: androidx.compose.ui.graphics.Path
 ) {
     if (completionRatio <= 0f) return // 0% tasks done -> NO TREE!
 
@@ -3753,7 +3758,12 @@ private fun DrawScope.drawLowPoly3DTree(
 /**
  * Draws a Low-Poly Stone / Dry Rock on Canvas for skipped days.
  */
-private fun DrawScope.drawLowPolyRock(isoX: Float, isoY: Float, scale: Float = 1.0f) {
+private fun DrawScope.drawLowPolyRock(
+    isoX: Float,
+    isoY: Float,
+    scale: Float,
+    path: androidx.compose.ui.graphics.Path
+) {
     val rockW = 10f * scale
     val rockH = 8f * scale
 
