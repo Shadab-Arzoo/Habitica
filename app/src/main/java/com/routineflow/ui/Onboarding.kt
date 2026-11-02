@@ -12,6 +12,8 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -364,55 +366,77 @@ private fun IntroPage() {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         GlassSurface(
-            Modifier.fillMaxWidth().padding(bottom = 36.dp),
+            Modifier.fillMaxWidth().padding(bottom = 24.dp),
             cornerRadius = 32.dp,
             elevation = 12.dp,
-            tint = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f)
+            tint = MaterialTheme.colorScheme.surface.copy(alpha = 0.90f)
         ) {
             Column(
-                Modifier.fillMaxWidth().padding(32.dp),
+                Modifier.fillMaxWidth().padding(28.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(20.dp)
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Icon(
-                    Icons.Rounded.AutoAwesome, 
-                    null, 
-                    Modifier.size(72.dp), 
-                    tint = MaterialTheme.colorScheme.primary
-                )
+                Box(
+                    modifier = Modifier
+                        .size(72.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primaryContainer),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Rounded.AutoAwesome, 
+                        contentDescription = null, 
+                        modifier = Modifier.size(38.dp), 
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+
                 Text(
-                    "Clarity for the next step",
-                    style = MaterialTheme.typography.headlineSmall,
+                    "Welcome to RoutineFlow",
+                    style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.ExtraBold,
                     textAlign = TextAlign.Center
                 )
-                androidx.compose.material3.Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
+
+                Text(
+                    "Transform your daily tasks, habits, and focus into a rewarding 3D growth journey.",
+                    textAlign = TextAlign.Center,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+
+                // Feature Highlights
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
                 ) {
-                    Text(
-                        "✓  Today  ·  3 tasks  ·  40 XP", 
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                    )
+                    IntroFeatureRow(emoji = "🪴", title = "3D Growth World", desc = "Watch habits bloom into a living 3D forest")
+                    IntroFeatureRow(emoji = "📅", title = "Smart Day Planner", desc = "Auto-calculate realistic daily schedules")
+                    IntroFeatureRow(emoji = "🧘", title = "Pomodoro & Audio", desc = "Deep focus sessions with ambient sounds")
                 }
             }
         }
-        Text(
-            "Make space for what matters.", 
-            style = MaterialTheme.typography.headlineLarge, 
-            fontWeight = FontWeight.ExtraBold, 
-            textAlign = TextAlign.Center,
-            color = MaterialTheme.colorScheme.onBackground
-        )
-        Text(
-            "Your tasks, routines, and goals — organized into a plan that works for your life.", 
-            Modifier.padding(top = 16.dp), 
-            textAlign = TextAlign.Center, 
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            style = MaterialTheme.typography.bodyLarge
-        )
+    }
+}
+
+@Composable
+private fun IntroFeatureRow(emoji: String, title: String, desc: String) {
+    androidx.compose.material3.Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(emoji, style = MaterialTheme.typography.titleLarge)
+            Column {
+                Text(title, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                Text(desc, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
     }
 }
 

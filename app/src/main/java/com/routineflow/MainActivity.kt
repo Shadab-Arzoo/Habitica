@@ -233,6 +233,24 @@ private fun RoutineFlowRoot() {
     
     val isDarkMode = savedDarkTheme ?: systemDarkMode
     var isAuthenticated by remember { mutableStateOf(false) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    // Request Runtime Notification Permission on App Launch (Android 13+)
+    if (android.os.Build.VERSION.SDK_INT >= 33) {
+        val permissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+            contract = androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+        ) { }
+
+        androidx.compose.runtime.LaunchedEffect(Unit) {
+            if (androidx.core.content.ContextCompat.checkSelfPermission(
+                    context,
+                    android.Manifest.permission.POST_NOTIFICATIONS
+                ) != android.content.pm.PackageManager.PERMISSION_GRANTED
+            ) {
+                permissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+    }
 
     RoutineFlowTheme(darkTheme = isDarkMode) {
         Surface(
@@ -354,6 +372,7 @@ private fun RoutineFlowApp(
     var showAddTask by remember { mutableStateOf(false) }
     var showSettingsDialog by remember { mutableStateOf(false) }
     var showTreeUnlockDialog by remember { mutableStateOf(false) }
+    var showAchievementsDialog by remember { mutableStateOf(false) }
     var showRestoreDialog by remember { mutableStateOf(false) }
     var restoreInputText by remember { mutableStateOf("") }
     var avatarClickCount by remember { mutableIntStateOf(0) }
@@ -1030,6 +1049,7 @@ private fun RoutineFlowApp(
                         state = state, 
                         tasks = tasks,
                         onOpenUnlockDialog = { showTreeUnlockDialog = true },
+                        onOpenAchievementsDialog = { showAchievementsDialog = true },
                         onTestAddXp = { viewModel.addTestXp(100) }
                     )
                     3 -> FocusScreen(
@@ -1385,6 +1405,93 @@ private fun RoutineFlowApp(
                                 shape = RoundedCornerShape(12.dp)
                             ) {
                                 Text("Restore Now")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (showAchievementsDialog) {
+        Dialog(
+            onDismissRequest = { showAchievementsDialog = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.68f))
+                    .clickable { showAchievementsDialog = false }
+                    .padding(horizontal = 16.dp, vertical = 24.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(28.dp),
+                    color = MaterialTheme.colorScheme.surface,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .fillMaxHeight(0.85f)
+                        .clickable(enabled = false) {}
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(20.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text("Trophy Case & Badges 🏆", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                                Text("Your milestone achievements and streak records", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            IconButton(onClick = { showAchievementsDialog = false }) {
+                                Icon(Icons.Rounded.Close, contentDescription = "Close")
+                            }
+                        }
+
+                        val userLevel = (state.xp / 100) + 1
+                        val totalCheckIns = state.activity.values.sum()
+                        val achievements = listOf(
+                            Triple("First Step", "Complete your first task or habit", totalCheckIns >= 1),
+                            Triple("Momentum Builder", "Reach a 3-day active streak", state.currentStreak >= 3),
+                            Triple("Garden Explorer", "Accumulate 10 total check-ins", totalCheckIns >= 10),
+                            Triple("Sakura Guardian", "Reach Level 3 & unlock Sakura Cherry", userLevel >= 3),
+                            Triple("Autumn Master", "Reach Level 5 & unlock Autumn Oak", userLevel >= 5),
+                            Triple("Golden Architect", "Reach Level 12 & unlock Golden Bonsai", userLevel >= 12),
+                            Triple("Cosmic Legend", "Reach Level 15 & unlock Cosmic Starlight", userLevel >= 15)
+                        )
+
+                        LazyColumn(
+                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            items(achievements) { (title, desc, unlocked) ->
+                                Surface(
+                                    shape = RoundedCornerShape(18.dp),
+                                    color = if (unlocked) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerLow,
+                                    border = BorderStroke(1.dp, if (unlocked) MaterialTheme.colorScheme.primary else Color.Transparent),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(14.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                    ) {
+                                        Text(if (unlocked) "🏆" else "🔒", style = MaterialTheme.typography.headlineMedium)
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = if (unlocked) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant)
+                                            Text(desc, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        }
+                                        if (unlocked) {
+                                            Text("UNLOCKED", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -2588,6 +2695,7 @@ private fun GrowthScreen(
     state: TodayUiState,
     tasks: List<TaskEntity>,
     onOpenUnlockDialog: () -> Unit,
+    onOpenAchievementsDialog: () -> Unit = {},
     onTestAddXp: () -> Unit
 ) {
     var subViewMode by remember { mutableIntStateOf(0) } // 0 = 3D World, 1 = Stats & XP
@@ -2677,7 +2785,7 @@ private fun GrowthScreen(
             if (view == 0) {
                 GardenWorldView(state, tasks)
             } else {
-                ProgressStatsView(state, onOpenUnlockDialog, onTestAddXp)
+                ProgressStatsView(state, onOpenUnlockDialog, onOpenAchievementsDialog, onTestAddXp)
             }
         }
     }
@@ -5494,6 +5602,7 @@ private fun PlannerBlockCard(
 private fun ProgressStatsView(
     state: TodayUiState,
     onOpenUnlockDialog: () -> Unit,
+    onOpenAchievementsDialog: () -> Unit = {},
     onTestAddXp: () -> Unit = {}
 ) {
     val level = (state.xp / 100) + 1
@@ -5548,11 +5657,19 @@ private fun ProgressStatsView(
                                 style = MaterialTheme.typography.headlineSmall,
                                 fontWeight = FontWeight.ExtraBold
                             )
-                            Text(
-                                text = "$achievementCount achievements unlocked",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+                                modifier = Modifier.clickable { onOpenAchievementsDialog() }
+                            ) {
+                                Text(
+                                    text = "🏆 $achievementCount achievements unlocked",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
                         }
                         
                         val infiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition()
