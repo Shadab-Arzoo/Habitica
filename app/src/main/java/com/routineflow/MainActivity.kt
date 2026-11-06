@@ -80,7 +80,9 @@ import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Checklist
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DarkMode
+import androidx.compose.material.icons.rounded.DateRange
 import androidx.compose.material.icons.rounded.DeleteOutline
+import androidx.compose.material.icons.rounded.ArrowDropDown
 import androidx.compose.material.icons.rounded.Event
 import androidx.compose.material.icons.rounded.Insights
 import androidx.compose.material.icons.rounded.LightMode
@@ -2796,6 +2798,7 @@ private fun GrowthScreen(
  * Dedicated Interactive Gaming Section (Sacred Tree Garden).
  * Features Low-Poly 3D Trees drawn directly on Canvas tiles for 2.5D Isometric & 3D Perspective!
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun GardenWorldView(state: TodayUiState, tasks: List<TaskEntity>) {
     val haptics = LocalHapticFeedback.current
@@ -2803,9 +2806,18 @@ private fun GardenWorldView(state: TodayUiState, tasks: List<TaskEntity>) {
     var tiltAngle by remember { mutableFloatStateOf(0.45f) }
     var rotationAngle by remember { mutableFloatStateOf(0f) }
     var zoomScale by remember { mutableFloatStateOf(1f) }
-    var selectedDayIndex by remember { mutableIntStateOf(27) }
+    var showDatePicker by remember { mutableStateOf(false) }
+    
     val today = LocalDate.now()
-    val pastDays = remember(today) { (27 downTo 0).map { today.minusDays(it.toLong()) } }
+    var timelineStartDate by remember { mutableStateOf(today.minusDays(27)) }
+    var timelineEndDate by remember { mutableStateOf(today) }
+    
+    val pastDays = remember(timelineStartDate, timelineEndDate) { 
+        val daysBetween = java.time.temporal.ChronoUnit.DAYS.between(timelineStartDate, timelineEndDate).toInt().coerceIn(0, 365)
+        (daysBetween downTo 0).map { timelineEndDate.minusDays(it.toLong()) } 
+    }
+    
+    var selectedDayIndex by remember(timelineStartDate, timelineEndDate) { mutableIntStateOf(pastDays.lastIndex) }
 
     AdaptiveLazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -2935,6 +2947,12 @@ private fun GardenWorldView(state: TodayUiState, tasks: List<TaskEntity>) {
                                             var minDistanceSq = Float.MAX_VALUE
 
                                             if (is3DMode) {
+                                                val totalDays = pastDays.size
+                                                val gridCols = if (totalDays < 7) totalDays else 7
+                                                val gridRows = (totalDays + 6) / 7
+                                                val colOffset = (gridCols - 1) / 2f
+                                                val rowOffset = (gridRows - 1) / 2f
+
                                                 val cameraYaw = Math.toRadians((rotationAngle + 45f).toDouble())
                                                 val pitchDeg = (tiltAngle * 90f).coerceIn(20f, 85f)
                                                 val cameraPitch = Math.toRadians(pitchDeg.toDouble())
@@ -2950,8 +2968,8 @@ private fun GardenWorldView(state: TodayUiState, tasks: List<TaskEntity>) {
                                                 pastDays.forEachIndexed { index, _ ->
                                                     val row = index / 7
                                                     val col = index % 7
-                                                    val lx = (col - 3f) * localW
-                                                    val lz = (row - 1.5f) * localW
+                                                    val lx = (col - colOffset) * localW
+                                                    val lz = (row - rowOffset) * localW
                                                     val rx = lx * cosYaw - lz * sinYaw
                                                     val rz = lx * sinYaw + lz * cosYaw
                                                     val ry = 0f * cosPitch - rz * sinPitch
@@ -2972,11 +2990,17 @@ private fun GardenWorldView(state: TodayUiState, tasks: List<TaskEntity>) {
                                                 val staticScale = 0.95f * zoomScale
                                                 val tileHeight = tileWidth * 0.5f
 
+                                                val totalDays = pastDays.size
+                                                val gridCols = if (totalDays < 7) totalDays else 7
+                                                val gridRows = (totalDays + 6) / 7
+                                                val colOffset = (gridCols - 1) / 2f
+                                                val rowOffset = (gridRows - 1) / 2f
+
                                                 pastDays.forEachIndexed { index, _ ->
                                                     val row = index / 7
                                                     val col = index % 7
-                                                    val centeredColOffset = col - 3f
-                                                    val centeredRowOffset = row - 1.5f
+                                                    val centeredColOffset = col - colOffset
+                                                    val centeredRowOffset = row - rowOffset
                                                     val isoX = startX + (centeredColOffset - centeredRowOffset) * (tileWidth * staticScale * 0.48f)
                                                     val isoY = startY + (centeredColOffset + centeredRowOffset) * (tileHeight * staticScale * 0.42f)
 
@@ -3019,13 +3043,20 @@ private fun GardenWorldView(state: TodayUiState, tasks: List<TaskEntity>) {
                                 val globalScale = 0.85f * zoomScale
                                 val localW = tileWidth * globalScale
 
+                                // Calculate Grid Constraints
+                                val totalDays = pastDays.size
+                                val gridCols = if (totalDays < 7) totalDays else 7
+                                val gridRows = (totalDays + 6) / 7
+                                val colOffset = (gridCols - 1) / 2f
+                                val rowOffset = (gridRows - 1) / 2f
+
                                 // Convert days into 3D sorted array
                                 val renderPass = pastDays.mapIndexed { index, dayDate ->
                                     val row = index / 7
                                     val col = index % 7
                                     
-                                    val lx = (col - 3f) * localW
-                                    val lz = (row - 1.5f) * localW
+                                    val lx = (col - colOffset) * localW
+                                    val lz = (row - rowOffset) * localW
                                     
                                     val rx = lx * cosYaw - lz * sinYaw
                                     val rz = lx * sinYaw + lz * cosYaw
@@ -3083,14 +3114,20 @@ private fun GardenWorldView(state: TodayUiState, tasks: List<TaskEntity>) {
                                 val startY = size.height / 2f + 20.dp.toPx()
                                 val staticScale = 0.95f * zoomScale
                                 
+                                val totalDays = pastDays.size
+                                val gridCols = if (totalDays < 7) totalDays else 7
+                                val gridRows = (totalDays + 6) / 7
+                                val colOffset = (gridCols - 1) / 2f
+                                val rowOffset = (gridRows - 1) / 2f
+
                                 pastDays.forEachIndexed { index, dayDate ->
                                     val row = index / 7
                                     val col = index % 7
                                     val completedTasks = state.taskActivity[dayDate] ?: 0
                                     val dayRatio = treeRatio(completedTasks, tasks.size.coerceAtLeast(1))
 
-                                    val centeredColOffset = col - 3f
-                                    val centeredRowOffset = row - 1.5f
+                                    val centeredColOffset = col - colOffset
+                                    val centeredRowOffset = row - rowOffset
                                     val isoX = startX + (centeredColOffset - centeredRowOffset) * (tileWidth * staticScale * 0.48f)
                                     val isoY = startY + (centeredColOffset + centeredRowOffset) * (tileHeight * staticScale * 0.42f)
 
