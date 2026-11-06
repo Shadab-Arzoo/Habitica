@@ -72,6 +72,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.rounded.VolumeOff
 import androidx.compose.material.icons.rounded.Add
@@ -3220,6 +3221,120 @@ private fun GardenWorldView(state: TodayUiState, tasks: List<TaskEntity>) {
                         }
                     }
                     
+                    if (showDatePicker) {
+                        Dialog(
+                            onDismissRequest = { showDatePicker = false },
+                            properties = DialogProperties(usePlatformDefaultWidth = false)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(Color.Black.copy(alpha = 0.65f))
+                                    .clickable { showDatePicker = false }
+                                    .padding(horizontal = 16.dp, vertical = 28.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Surface(
+                                    shape = RoundedCornerShape(28.dp),
+                                    color = MaterialTheme.colorScheme.surface,
+                                    modifier = Modifier.fillMaxWidth().clickable(enabled = false) {}
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(24.dp),
+                                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                                    ) {
+                                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                            Text("Timeline Range", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                                            IconButton(onClick = { showDatePicker = false }) {
+                                                Icon(Icons.Rounded.Close, contentDescription = "Close")
+                                            }
+                                        }
+                                        Text("Select the date range for your 3D Garden visualization.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        
+                                        // Start Date Editor
+                                        Surface(
+                                            shape = RoundedCornerShape(12.dp),
+                                            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                Text("Start Date", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                                    IconButton(onClick = { timelineStartDate = timelineStartDate.minusDays(7) }) {
+                                                        Icon(Icons.AutoMirrored.Rounded.KeyboardArrowLeft, contentDescription = "-1 Week")
+                                                    }
+                                                    Text(timelineStartDate.format(DateTimeFormatter.ofPattern("MMM d, yyyy", Locale.getDefault())), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                                    IconButton(
+                                                        onClick = { 
+                                                            val next = timelineStartDate.plusDays(7)
+                                                            if (next < timelineEndDate) timelineStartDate = next
+                                                        },
+                                                        enabled = timelineStartDate.plusDays(7) < timelineEndDate
+                                                    ) {
+                                                        Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = "+1 Week")
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        // End Date Editor
+                                        Surface(
+                                            shape = RoundedCornerShape(12.dp),
+                                            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                Text("End Date", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                                    IconButton(
+                                                        onClick = {
+                                                            val prev = timelineEndDate.minusDays(7)
+                                                            if (prev > timelineStartDate) timelineEndDate = prev
+                                                        },
+                                                        enabled = timelineEndDate.minusDays(7) > timelineStartDate
+                                                    ) {
+                                                        Icon(Icons.AutoMirrored.Rounded.KeyboardArrowLeft, contentDescription = "-1 Week")
+                                                    }
+                                                    Text(timelineEndDate.format(DateTimeFormatter.ofPattern("MMM d, yyyy", Locale.getDefault())), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                                    IconButton(
+                                                        onClick = { 
+                                                            if (timelineEndDate < today) {
+                                                                val next = timelineEndDate.plusDays(7)
+                                                                timelineEndDate = if (next > today) today else next
+                                                            }
+                                                        },
+                                                        enabled = timelineEndDate < today
+                                                    ) {
+                                                        Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = "+1 Week")
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        // Quick Jumps
+                                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                                            Button(
+                                                onClick = {
+                                                    timelineEndDate = today
+                                                    timelineStartDate = today.minusDays(27)
+                                                    showDatePicker = false
+                                                },
+                                                shape = RoundedCornerShape(12.dp)
+                                            ) {
+                                                Text("Reset to Last 28 Days")
+                                            }
+                                        }
+                                        
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        
+                                        val totalDays = java.time.temporal.ChronoUnit.DAYS.between(timelineStartDate, timelineEndDate).toInt().coerceAtLeast(1)
+                                        Text("Generating a $totalDays-day garden grid", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
                     // Floating Selected Date Badge on top-left of Canvas
                     val currentSelectedDate = pastDays.getOrNull(selectedDayIndex) ?: today
                     val isSelectedToday = currentSelectedDate == today
@@ -3234,7 +3349,9 @@ private fun GardenWorldView(state: TodayUiState, tasks: List<TaskEntity>) {
                             .padding(14.dp)
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                            modifier = Modifier
+                                .clickable { showDatePicker = true }
+                                .padding(horizontal = 12.dp, vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
