@@ -83,7 +83,13 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.DateRange
 import androidx.compose.material.icons.rounded.DeleteOutline
-import androidx.compose.material.icons.rounded.ArrowDropDown
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DateRangePicker
+import androidx.compose.material3.rememberDateRangePickerState
+import androidx.compose.material.icons.rounded.ArrowRightAlt
+import java.time.Instant
+import java.time.ZoneId
+import java.time.ZoneOffset
 import androidx.compose.material.icons.rounded.Event
 import androidx.compose.material.icons.rounded.Insights
 import androidx.compose.material.icons.rounded.LightMode
@@ -3222,114 +3228,95 @@ private fun GardenWorldView(state: TodayUiState, tasks: List<TaskEntity>) {
                     }
                     
                     if (showDatePicker) {
+                        val dateRangePickerState = rememberDateRangePickerState(
+                            initialSelectedStartDateMillis = timelineStartDate.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli(),
+                            initialSelectedEndDateMillis = timelineEndDate.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+                        )
                         Dialog(
                             onDismissRequest = { showDatePicker = false },
                             properties = DialogProperties(usePlatformDefaultWidth = false)
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .background(Color.Black.copy(alpha = 0.65f))
-                                    .clickable { showDatePicker = false }
-                                    .padding(horizontal = 16.dp, vertical = 28.dp),
-                                contentAlignment = Alignment.Center
+                            Surface(
+                                modifier = Modifier.fillMaxSize(),
+                                color = MaterialTheme.colorScheme.surface
                             ) {
-                                Surface(
-                                    shape = RoundedCornerShape(28.dp),
-                                    color = MaterialTheme.colorScheme.surface,
-                                    modifier = Modifier.fillMaxWidth().clickable(enabled = false) {}
-                                ) {
-                                    Column(
-                                        modifier = Modifier.padding(24.dp),
-                                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                                Column(modifier = Modifier.fillMaxSize()) {
+                                    // Header
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                            Text("Timeline Range", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                                            IconButton(onClick = { showDatePicker = false }) {
-                                                Icon(Icons.Rounded.Close, contentDescription = "Close")
-                                            }
+                                        IconButton(onClick = { showDatePicker = false }) {
+                                            Icon(Icons.Rounded.Close, contentDescription = "Close")
                                         }
-                                        Text("Select the date range for your 3D Garden visualization.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                        
-                                        // Start Date Editor
-                                        Surface(
-                                            shape = RoundedCornerShape(12.dp),
-                                            color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                                            modifier = Modifier.fillMaxWidth()
-                                        ) {
-                                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                                Text("Start Date", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
-                                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                                    IconButton(onClick = { timelineStartDate = timelineStartDate.minusDays(7) }) {
-                                                        Icon(Icons.AutoMirrored.Rounded.KeyboardArrowLeft, contentDescription = "-1 Week")
-                                                    }
-                                                    Text(timelineStartDate.format(DateTimeFormatter.ofPattern("MMM d, yyyy", Locale.getDefault())), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                                                    IconButton(
-                                                        onClick = { 
-                                                            val next = timelineStartDate.plusDays(7)
-                                                            if (next < timelineEndDate) timelineStartDate = next
-                                                        },
-                                                        enabled = timelineStartDate.plusDays(7) < timelineEndDate
-                                                    ) {
-                                                        Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = "+1 Week")
+                                        Button(
+                                            onClick = {
+                                                val sMillis = dateRangePickerState.selectedStartDateMillis
+                                                val eMillis = dateRangePickerState.selectedEndDateMillis
+                                                if (sMillis != null && eMillis != null) {
+                                                    val newStart = Instant.ofEpochMilli(sMillis).atZone(ZoneId.of("UTC")).toLocalDate()
+                                                    val newEnd = Instant.ofEpochMilli(eMillis).atZone(ZoneId.of("UTC")).toLocalDate()
+                                                    if (!newStart.isAfter(newEnd)) {
+                                                        timelineStartDate = newStart
+                                                        timelineEndDate = newEnd
                                                     }
                                                 }
-                                            }
-                                        }
-
-                                        // End Date Editor
-                                        Surface(
-                                            shape = RoundedCornerShape(12.dp),
-                                            color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                                            modifier = Modifier.fillMaxWidth()
+                                                showDatePicker = false
+                                            },
+                                            enabled = dateRangePickerState.selectedStartDateMillis != null && dateRangePickerState.selectedEndDateMillis != null
                                         ) {
-                                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                                Text("End Date", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
-                                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                                    IconButton(
-                                                        onClick = {
-                                                            val prev = timelineEndDate.minusDays(7)
-                                                            if (prev > timelineStartDate) timelineEndDate = prev
-                                                        },
-                                                        enabled = timelineEndDate.minusDays(7) > timelineStartDate
-                                                    ) {
-                                                        Icon(Icons.AutoMirrored.Rounded.KeyboardArrowLeft, contentDescription = "-1 Week")
-                                                    }
-                                                    Text(timelineEndDate.format(DateTimeFormatter.ofPattern("MMM d, yyyy", Locale.getDefault())), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                                                    IconButton(
-                                                        onClick = { 
-                                                            if (timelineEndDate < today) {
-                                                                val next = timelineEndDate.plusDays(7)
-                                                                timelineEndDate = if (next > today) today else next
-                                                            }
-                                                        },
-                                                        enabled = timelineEndDate < today
-                                                    ) {
-                                                        Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = "+1 Week")
-                                                    }
-                                                }
-                                            }
+                                            Text("Apply Grid", fontWeight = FontWeight.Bold)
                                         }
-
-                                        // Quick Jumps
-                                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                                            Button(
-                                                onClick = {
-                                                    timelineEndDate = today
-                                                    timelineStartDate = today.minusDays(27)
-                                                    showDatePicker = false
-                                                },
-                                                shape = RoundedCornerShape(12.dp)
-                                            ) {
-                                                Text("Reset to Last 28 Days")
-                                            }
-                                        }
-                                        
-                                        Spacer(modifier = Modifier.height(4.dp))
-                                        
-                                        val totalDays = java.time.temporal.ChronoUnit.DAYS.between(timelineStartDate, timelineEndDate).toInt().coerceAtLeast(1)
-                                        Text("Generating a $totalDays-day garden grid", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
                                     }
+                                    
+                                    DateRangePicker(
+                                        state = dateRangePickerState,
+                                        modifier = Modifier.weight(1f),
+                                        title = {
+                                            Text(
+                                                "Garden Timeline Range", 
+                                                modifier = Modifier.padding(16.dp), 
+                                                style = MaterialTheme.typography.titleLarge, 
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        },
+                                        headline = {
+                                            val sMillis = dateRangePickerState.selectedStartDateMillis
+                                            val eMillis = dateRangePickerState.selectedEndDateMillis
+                                            val sText = sMillis?.let { Instant.ofEpochMilli(it).atZone(ZoneId.of("UTC")).toLocalDate().format(DateTimeFormatter.ofPattern("MMM d, yyyy")) } ?: "Start Date"
+                                            val eText = eMillis?.let { Instant.ofEpochMilli(it).atZone(ZoneId.of("UTC")).toLocalDate().format(DateTimeFormatter.ofPattern("MMM d, yyyy")) } ?: "End Date"
+                                            
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Surface(
+                                                    shape = RoundedCornerShape(12.dp),
+                                                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                                    modifier = Modifier.weight(1f)
+                                                ) {
+                                                    Column(Modifier.padding(12.dp)) {
+                                                        Text("From", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                                                        Text(sText, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                                    }
+                                                }
+                                                Icon(Icons.Rounded.ArrowRightAlt, contentDescription = "To", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                Surface(
+                                                    shape = RoundedCornerShape(12.dp),
+                                                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                                    modifier = Modifier.weight(1f)
+                                                ) {
+                                                    Column(Modifier.padding(12.dp)) {
+                                                        Text("To", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                                                        Text(eText, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        showModeToggle = false
+                                    )
                                 }
                             }
                         }
