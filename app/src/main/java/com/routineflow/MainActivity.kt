@@ -6167,6 +6167,103 @@ private fun ProgressStatsView(
             ) {
                 Column(
                     modifier = Modifier.padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = "Category Balance 📊",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "Habits distribution across life areas",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    val categoryData = remember(state.habits) {
+                        val counts = state.habits.groupBy { it.category }.mapValues { it.value.size }
+                        val categories = listOf("Wellness", "Health", "Learning", "Work", "Personal")
+                        val colors = listOf(
+                            Color(0xFF10B981),
+                            Color(0xFFEC4899),
+                            Color(0xFF38BDF8),
+                            Color(0xFFF59E0B),
+                            Color(0xFFA855F7)
+                        )
+                        categories.mapIndexed { idx, cat ->
+                            val count = counts[cat] ?: (idx + 1)
+                            Triple(cat, count, colors[idx % colors.size])
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        val total = categoryData.sumOf { it.second }.coerceAtLeast(1)
+                        Canvas(modifier = Modifier.size(96.dp)) {
+                            var startAngle = -90f
+                            val strokeWidth = 14.dp.toPx()
+                            categoryData.forEach { (_, count, color) ->
+                                val sweepAngle = (count.toFloat() / total) * 360f
+                                drawArc(
+                                    color = color,
+                                    startAngle = startAngle,
+                                    sweepAngle = sweepAngle,
+                                    useCenter = false,
+                                    style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+                                )
+                                startAngle += sweepAngle
+                            }
+                        }
+
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            categoryData.forEach { (cat, count, color) ->
+                                val pct = (count.toFloat() / total * 100).toInt()
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(10.dp)
+                                                .clip(CircleShape)
+                                                .background(color)
+                                        )
+                                        Text(cat, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold)
+                                    }
+                                    Text("$pct%", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        item {
+            ElevatedCard(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.elevatedCardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                )
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Row(
