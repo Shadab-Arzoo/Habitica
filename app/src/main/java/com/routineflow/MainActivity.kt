@@ -2951,7 +2951,15 @@ private fun ReflectionJournalView(
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Text(entry.emoji, style = MaterialTheme.typography.titleLarge)
                                 Column {
-                                    Text(entry.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Text(entry.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                        Surface(
+                                            shape = RoundedCornerShape(8.dp),
+                                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                                        ) {
+                                            Text(entry.category, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                                        }
+                                    }
                                     Text(entry.date, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                             }
@@ -2969,10 +2977,20 @@ private fun ReflectionJournalView(
     if (showAddJournalDialog) {
         var noteTitle by remember { mutableStateOf("") }
         var noteContent by remember { mutableStateOf("") }
+        val moodOptions = remember {
+            listOf(
+                Pair("😄", "Gratitude"),
+                Pair("🧘", "Mindfulness"),
+                Pair("⚡", "Energy"),
+                Pair("🏆", "Achievement"),
+                Pair("🍃", "Recovery")
+            )
+        }
+        var selectedMood by remember { mutableStateOf(moodOptions[0]) }
 
         SpringModalOverlay(
             onDismissRequest = { showAddJournalDialog = false },
-            maxHeightRatio = 0.65f
+            maxHeightRatio = 0.72f
         ) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text("Write Reflection 📝", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
@@ -2983,7 +3001,25 @@ private fun ReflectionJournalView(
 
             Spacer(Modifier.height(8.dp))
 
-            GlassInput(value = noteTitle, onValueChange = { noteTitle = it }, label = "Title (e.g. Daily Rhythm)", placeholder = "Headline...")
+            Text("Select Reflection Mood", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                moodOptions.forEach { mood ->
+                    val isSelected = selectedMood == mood
+                    FilterChip(
+                        selected = isSelected,
+                        onClick = { selectedMood = mood },
+                        label = { Text("${mood.first} ${mood.second}", fontWeight = FontWeight.Bold) },
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                }
+            }
+
+            GlassInput(value = noteTitle, onValueChange = { noteTitle = it }, label = "Title (Optional)", placeholder = "e.g. Daily Rhythm & Energy...")
             GlassInput(value = noteContent, onValueChange = { noteContent = it }, label = "Your Reflection Note", placeholder = "How did your session go? What did you accomplish?")
 
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
@@ -2993,10 +3029,10 @@ private fun ReflectionJournalView(
                     onClick = {
                         if (noteContent.isNotBlank()) {
                             onAddEntry(
-                                if (noteTitle.isBlank()) "Reflection Note" else noteTitle,
+                                if (noteTitle.isBlank()) "${selectedMood.second} Reflection" else noteTitle,
                                 noteContent,
-                                "Reflection",
-                                "📔"
+                                selectedMood.second,
+                                selectedMood.first
                             )
                             showAddJournalDialog = false
                         }
