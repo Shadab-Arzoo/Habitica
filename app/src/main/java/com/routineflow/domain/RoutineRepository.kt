@@ -26,4 +26,20 @@ class RoutineRepository @Inject constructor(private val dao: RoutineDao) {
 
     suspend fun updateRecovery(id: Long, status: String) =
         dao.updateRecoveryStatus(id, status, if (status == "DISMISSED") System.currentTimeMillis() else null)
+
+    fun journalEntries(): Flow<List<com.routineflow.data.local.JournalEntity>> = dao.observeJournal()
+
+    suspend fun addJournalEntry(title: String, content: String, category: String = "Reflection", emoji: String = "📔") {
+        dao.insertJournal(
+            com.routineflow.data.local.JournalEntity(
+                title = title.trim(),
+                content = content.trim(),
+                category = category,
+                emoji = emoji,
+                date = LocalDate.now().toString()
+            )
+        )
+    }
+
+    suspend fun deleteJournalEntry(id: Long) = dao.deleteJournal(id)
 }

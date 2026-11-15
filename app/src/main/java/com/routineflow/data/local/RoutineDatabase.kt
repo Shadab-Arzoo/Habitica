@@ -13,9 +13,10 @@ import android.content.Context
         RecoveryPlanEntity::class,
         TaskEntity::class,
         SubtaskEntity::class,
-        TaskCompletionEntity::class
+        TaskCompletionEntity::class,
+        JournalEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class RoutineDatabase : RoomDatabase() {
@@ -86,7 +87,7 @@ abstract class RoutineDatabase : RoomDatabase() {
                     context.applicationContext,
                     RoutineDatabase::class.java,
                     "routineflow.db"
-                ).addMigrations(MIGRATION_1_2).build().also { instance = it }
+                ).fallbackToDestructiveMigration().build().also { instance = it }
             }
     }
 }

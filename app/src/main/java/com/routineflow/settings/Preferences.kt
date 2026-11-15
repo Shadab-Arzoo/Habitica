@@ -2,6 +2,7 @@ package com.routineflow.settings
 
 import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.preferencesDataStore
@@ -15,11 +16,13 @@ private val Context.preferencesDataStore by preferencesDataStore("routineflow_pr
 class Preferences @Inject constructor(@ApplicationContext private val context: Context) {
     private val reducedMotionKey = booleanPreferencesKey("reduced_motion")
     private val darkThemeKey = booleanPreferencesKey("dark_theme")
+    private val themePaletteKey = stringPreferencesKey("theme_palette")
     private val appLockEnabledKey = booleanPreferencesKey("app_lock_enabled")
     private val onboardingCompletedKey = booleanPreferencesKey("onboarding_completed")
     private val onboardingCategoriesKey = stringSetPreferencesKey("onboarding_categories")
     val reducedMotion: Flow<Boolean> = context.preferencesDataStore.data.map { it[reducedMotionKey] ?: false }
     val darkTheme: Flow<Boolean?> = context.preferencesDataStore.data.map { it[darkThemeKey] }
+    val themePalette: Flow<String> = context.preferencesDataStore.data.map { it[themePaletteKey] ?: "Emerald" }
     val appLockEnabled: Flow<Boolean> = context.preferencesDataStore.data.map { it[appLockEnabledKey] ?: false }
     val onboardingCompleted: Flow<Boolean> =
         context.preferencesDataStore.data.map { it[onboardingCompletedKey] ?: false }
@@ -30,6 +33,10 @@ class Preferences @Inject constructor(@ApplicationContext private val context: C
 
     suspend fun setDarkTheme(enabled: Boolean) {
         context.preferencesDataStore.edit { it[darkThemeKey] = enabled }
+    }
+
+    suspend fun setThemePalette(palette: String) {
+        context.preferencesDataStore.edit { it[themePaletteKey] = palette }
     }
 
     suspend fun setAppLockEnabled(enabled: Boolean) {

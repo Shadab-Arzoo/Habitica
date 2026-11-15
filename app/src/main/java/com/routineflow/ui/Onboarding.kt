@@ -148,8 +148,14 @@ class OnboardingViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
     val darkTheme: StateFlow<Boolean?> = preferences.darkTheme
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+    val themePalette: StateFlow<String> = preferences.themePalette
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "Emerald")
     val appLockEnabled: StateFlow<Boolean> = preferences.appLockEnabled
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    fun setThemePalette(palette: String) {
+        viewModelScope.launch { preferences.setThemePalette(palette) }
+    }
     val state: StateFlow<OnboardingUiState> = kotlinx.coroutines.flow.combine(
         preferences.onboardingCompleted,
         routineRepository.habits(),

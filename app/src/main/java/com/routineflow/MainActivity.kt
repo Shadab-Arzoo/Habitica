@@ -27,6 +27,9 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.animation.core.animateFloat
+import com.routineflow.data.local.JournalEntity
+import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -239,6 +242,7 @@ private fun RoutineFlowRoot() {
     val onboarding by onboardingViewModel.state.collectAsStateWithLifecycle()
     val reducedMotion by onboardingViewModel.reducedMotion.collectAsStateWithLifecycle()
     val savedDarkTheme by onboardingViewModel.darkTheme.collectAsStateWithLifecycle()
+    val themePalette by onboardingViewModel.themePalette.collectAsStateWithLifecycle()
     val appLockEnabled by onboardingViewModel.appLockEnabled.collectAsStateWithLifecycle()
     
     val isDarkMode = savedDarkTheme ?: systemDarkMode
@@ -262,7 +266,7 @@ private fun RoutineFlowRoot() {
         }
     }
 
-    RoutineFlowTheme(darkTheme = isDarkMode) {
+    RoutineFlowTheme(darkTheme = isDarkMode, palette = themePalette) {
         Surface(
             modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.background
@@ -276,6 +280,8 @@ private fun RoutineFlowRoot() {
                     true -> RoutineFlowApp(
                         darkMode = isDarkMode,
                         onThemeToggle = { onboardingViewModel.setDarkTheme(!isDarkMode) },
+                        themePalette = themePalette,
+                        onThemePaletteChange = onboardingViewModel::setThemePalette,
                         reducedMotion = reducedMotion,
                         onReducedMotionChange = onboardingViewModel::setReducedMotion,
                         appLockEnabled = appLockEnabled,
@@ -370,6 +376,8 @@ private fun AppLockScreen(onAuthenticated: () -> Unit) {
 private fun RoutineFlowApp(
     darkMode: Boolean,
     onThemeToggle: () -> Unit,
+    themePalette: String = "Emerald",
+    onThemePaletteChange: (String) -> Unit = {},
     reducedMotion: Boolean,
     onReducedMotionChange: (Boolean) -> Unit,
     appLockEnabled: Boolean,
@@ -378,6 +386,7 @@ private fun RoutineFlowApp(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val tasks by viewModel.tasks.collectAsStateWithLifecycle()
+    val journalEntries by viewModel.journalEntries.collectAsStateWithLifecycle()
     var showAdd by remember { mutableStateOf(false) }
     var showAddTask by remember { mutableStateOf(false) }
     var showSettingsDialog by remember { mutableStateOf(false) }
@@ -1058,6 +1067,9 @@ private fun RoutineFlowApp(
                     2 -> GrowthScreen(
                         state = state, 
                         tasks = tasks,
+                        journalEntries = journalEntries,
+                        onAddJournalEntry = { title, content, category, emoji -> viewModel.addJournalEntry(title, content, category, emoji) },
+                        onDeleteJournalEntry = { id -> viewModel.deleteJournalEntry(id) },
                         onOpenUnlockDialog = { showTreeUnlockDialog = true },
                         onOpenAchievementsDialog = { showAchievementsDialog = true },
                         onTestAddXp = { viewModel.addTestXp(100) }
@@ -2729,11 +2741,14 @@ private fun GardenDayChip(
 private fun GrowthScreen(
     state: TodayUiState,
     tasks: List<TaskEntity>,
+    journalEntries: List<JournalEntity> = emptyList(),
+    onAddJournalEntry: (String, String, String, String) -> Unit = { _, _, _, _ -> },
+    onDeleteJournalEntry: (Long) -> Unit = {},
     onOpenUnlockDialog: () -> Unit,
     onOpenAchievementsDialog: () -> Unit = {},
     onTestAddXp: () -> Unit
 ) {
-    var subViewMode by remember { mutableIntStateOf(0) } // 0 = 3D World, 1 = Stats & XP
+    var subViewMode by remember { mutableIntStateOf(0) } // 0 = 3D World, 1 = Stats & XP, 2 = Journal
 
     Column(modifier = Modifier.fillMaxSize()) {
         Surface(
@@ -2766,10 +2781,10 @@ private fun GrowthScreen(
                             tint = if (subViewMode == 0) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(18.dp)
                         )
-                        Spacer(Modifier.width(6.dp))
+                        Spacer(Modifier.width(4.dp))
                         Text(
                             "3D World",
-                            style = MaterialTheme.typography.labelLarge,
+                            style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Bold,
                             color = if (subViewMode == 0) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -2793,12 +2808,32 @@ private fun GrowthScreen(
                             tint = if (subViewMode == 1) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(18.dp)
                         )
-                        Spacer(Modifier.width(6.dp))
+                        Spacer(Modifier.width(4.dp))
                         Text(
                             "Stats & XP",
-                            style = MaterialTheme.typography.labelLarge,
+                            style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Bold,
                             color = if (subViewMode == 1) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                Surface(
+                    onClick = { subViewMode = 2 },
+                    shape = RoundedCornerShape(12.dp),
+                    color = if (subViewMode == 2) MaterialTheme.colorScheme.primary else Color.Transparent,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Row(
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(vertical = 10.dp)
+                    ) {
+                        Text(
+                            "Journal 📔",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = if (subViewMode == 2) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -2817,10 +2852,157 @@ private fun GrowthScreen(
             label = "growth_subview",
             modifier = Modifier.fillMaxSize()
         ) { view ->
-            if (view == 0) {
-                GardenWorldView(state, tasks)
-            } else {
-                ProgressStatsView(state, onOpenUnlockDialog, onOpenAchievementsDialog, onTestAddXp)
+            when (view) {
+                0 -> GardenWorldView(state, tasks)
+                1 -> ProgressStatsView(state, onOpenUnlockDialog, onOpenAchievementsDialog, onTestAddXp)
+                else -> ReflectionJournalView(journalEntries, onAddJournalEntry, onDeleteJournalEntry)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReflectionJournalView(
+    journalEntries: List<JournalEntity>,
+    onAddEntry: (String, String, String, String) -> Unit,
+    onDeleteEntry: (Long) -> Unit
+) {
+    var showAddJournalDialog by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
+
+    val filteredEntries = remember(journalEntries, searchQuery) {
+        if (searchQuery.isBlank()) journalEntries
+        else journalEntries.filter {
+            it.title.contains(searchQuery, ignoreCase = true) ||
+            it.content.contains(searchQuery, ignoreCase = true) ||
+            it.category.contains(searchQuery, ignoreCase = true)
+        }
+    }
+
+    AdaptiveLazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text("Reflection Journal 📔", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                    Text("${journalEntries.size} notes recorded", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                }
+                FilledIconButton(onClick = { showAddJournalDialog = true }) {
+                    Icon(Icons.Rounded.Add, contentDescription = "Add Reflection Note")
+                }
+            }
+        }
+
+        item {
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                placeholder = { Text("Search reflections & notes...") },
+                leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                shape = RoundedCornerShape(16.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+                )
+            )
+        }
+
+        if (filteredEntries.isEmpty()) {
+            item {
+                GlassSurface(
+                    modifier = Modifier.fillMaxWidth(),
+                    cornerRadius = 20.dp
+                ) {
+                    Column(
+                        modifier = Modifier.padding(32.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text("📔", style = MaterialTheme.typography.displaySmall)
+                        Text("No reflections recorded yet", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Text("Capture your daily thoughts, reflections, and habit notes here.", color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center, style = MaterialTheme.typography.bodySmall)
+                        Button(onClick = { showAddJournalDialog = true }, shape = RoundedCornerShape(12.dp)) {
+                            Text("Write First Reflection")
+                        }
+                    }
+                }
+            }
+        } else {
+            items(filteredEntries, key = { it.id }) { entry ->
+                GlassSurface(
+                    modifier = Modifier.fillMaxWidth(),
+                    cornerRadius = 20.dp
+                ) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text(entry.emoji, style = MaterialTheme.typography.titleLarge)
+                                Column {
+                                    Text(entry.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                    Text(entry.date, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                            IconButton(onClick = { onDeleteEntry(entry.id) }) {
+                                Icon(Icons.Rounded.DeleteOutline, contentDescription = "Delete Note", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                        Text(entry.content, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+                    }
+                }
+            }
+        }
+    }
+
+    if (showAddJournalDialog) {
+        var noteTitle by remember { mutableStateOf("") }
+        var noteContent by remember { mutableStateOf("") }
+
+        SpringModalOverlay(
+            onDismissRequest = { showAddJournalDialog = false },
+            maxHeightRatio = 0.65f
+        ) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text("Write Reflection 📝", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                IconButton(onClick = { showAddJournalDialog = false }) {
+                    Icon(Icons.Rounded.Close, contentDescription = "Close")
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            GlassInput(value = noteTitle, onValueChange = { noteTitle = it }, label = "Title (e.g. Daily Rhythm)", placeholder = "Headline...")
+            GlassInput(value = noteContent, onValueChange = { noteContent = it }, label = "Your Reflection Note", placeholder = "How did your session go? What did you accomplish?")
+
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                TextButton(onClick = { showAddJournalDialog = false }) { Text("Cancel") }
+                Spacer(Modifier.width(8.dp))
+                Button(
+                    onClick = {
+                        if (noteContent.isNotBlank()) {
+                            onAddEntry(
+                                if (noteTitle.isBlank()) "Reflection Note" else noteTitle,
+                                noteContent,
+                                "Reflection",
+                                "📔"
+                            )
+                            showAddJournalDialog = false
+                        }
+                    },
+                    shape = RoundedCornerShape(12.dp)
+                ) { Text("Save Reflection") }
             }
         }
     }
@@ -6334,6 +6516,8 @@ private fun heatmapColor(intensity: Float): Color {
 private fun SettingsScreen(
     darkMode: Boolean,
     onThemeToggle: () -> Unit,
+    themePalette: String = "Emerald",
+    onThemePaletteChange: (String) -> Unit = {},
     reducedMotion: Boolean,
     onReducedMotionChange: (Boolean) -> Unit,
     appLockEnabled: Boolean,
@@ -6377,6 +6561,57 @@ private fun SettingsScreen(
                         },
                         colors = ListItemDefaults.colors(containerColor = Color.Transparent)
                     )
+                }
+            }
+        }
+        item {
+            GlassSurface(
+                modifier = Modifier.fillMaxWidth(),
+                cornerRadius = 22.dp,
+                highlighted = true,
+                elevation = 8.dp
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Icon(Icons.Rounded.Palette, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                        Text("Theme Color Palette", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    }
+                    Text("Select your primary accent color theme for the app", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        val palettes = listOf(
+                            Triple("Emerald", "🌲 Emerald", Color(0xFF10B981)),
+                            Triple("Sakura", "🌸 Sakura", Color(0xFFEC4899)),
+                            Triple("Ocean", "🌊 Ocean", Color(0xFF0284C7)),
+                            Triple("Sunset", "🌅 Sunset", Color(0xFFF59E0B))
+                        )
+                        palettes.forEach { (key, label, color) ->
+                            val selected = themePalette == key
+                            FilterChip(
+                                selected = selected,
+                                onClick = { onThemePaletteChange(key) },
+                                label = { Text(label, fontWeight = FontWeight.Bold) },
+                                shape = RoundedCornerShape(12.dp),
+                                leadingIcon = {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(12.dp)
+                                            .clip(CircleShape)
+                                            .background(color)
+                                    )
+                                },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = color.copy(alpha = 0.25f),
+                                    selectedLabelColor = MaterialTheme.colorScheme.onSurface
+                                )
+                            )
+                        }
+                    }
                 }
             }
         }

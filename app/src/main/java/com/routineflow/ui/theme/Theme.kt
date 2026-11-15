@@ -38,32 +38,76 @@ private val RoutineFlowLightColors = lightColorScheme(
     surfaceContainerHighest = Color(0xFFCBD5E1)
 )
 
-private val RoutineFlowDarkColors = darkColorScheme(
-    primary = Color(0xFF38BDF8),
+private val EmeraldDarkColors = darkColorScheme(
+    primary = Color(0xFF10B981),
     onPrimary = Color.White,
-    primaryContainer = Color(0xFF0369A1),
-    onPrimaryContainer = Color(0xFFE0F2FE),
-    secondary = Color(0xFF818CF8),
-    onSecondary = Color(0xFF3730A3),
-    secondaryContainer = Color(0xFF4338CA),
-    onSecondaryContainer = Color(0xFFEEF2FF),
-    tertiary = Color(0xFFF472B6),
-    onTertiary = Color(0xFF831843),
-    tertiaryContainer = Color(0xFF9D174D),
-    onTertiaryContainer = Color(0xFFFCE7F3),
+    primaryContainer = Color(0xFF047857),
+    onPrimaryContainer = Color(0xFFD1FAE5),
+    secondary = Color(0xFF34D399),
+    onSecondary = Color(0xFF065F46),
+    secondaryContainer = Color(0xFF064E3B),
+    onSecondaryContainer = Color(0xFFA7F3D0),
     background = Color(0xFF090D16),
     onBackground = Color(0xFFF8FAFC),
     surface = Color(0xFF131926),
     onSurface = Color(0xFFF8FAFC),
     surfaceVariant = Color(0xFF1E2638),
     onSurfaceVariant = Color(0xFF94A3B8),
-    outline = Color(0xFF475569),
-    outlineVariant = Color(0xFF1E293B),
-    surfaceContainerLowest = Color(0xFF060910),
-    surfaceContainerLow = Color(0xFF0D121F),
-    surfaceContainer = Color(0xFF131926),
-    surfaceContainerHigh = Color(0xFF1E2638),
-    surfaceContainerHighest = Color(0xFF283248)
+    surfaceContainerHigh = Color(0xFF1E2638)
+)
+
+private val SakuraDarkColors = darkColorScheme(
+    primary = Color(0xFFEC4899),
+    onPrimary = Color.White,
+    primaryContainer = Color(0xFFBE185D),
+    onPrimaryContainer = Color(0xFFFCE7F3),
+    secondary = Color(0xFFF472B6),
+    onSecondary = Color(0xFF831843),
+    secondaryContainer = Color(0xFF500724),
+    onSecondaryContainer = Color(0xFFFBCFE8),
+    background = Color(0xFF110A14),
+    onBackground = Color(0xFFF8FAFC),
+    surface = Color(0xFF1A101E),
+    onSurface = Color(0xFFF8FAFC),
+    surfaceVariant = Color(0xFF281830),
+    onSurfaceVariant = Color(0xFFA898B0),
+    surfaceContainerHigh = Color(0xFF281830)
+)
+
+private val OceanDarkColors = darkColorScheme(
+    primary = Color(0xFF0284C7),
+    onPrimary = Color.White,
+    primaryContainer = Color(0xFF0369A1),
+    onPrimaryContainer = Color(0xFFE0F2FE),
+    secondary = Color(0xFF38BDF8),
+    onSecondary = Color(0xFF075985),
+    secondaryContainer = Color(0xFF0C4A6E),
+    onSecondaryContainer = Color(0xFFBAE6FD),
+    background = Color(0xFF070F18),
+    onBackground = Color(0xFFF8FAFC),
+    surface = Color(0xFF0F1826),
+    onSurface = Color(0xFFF8FAFC),
+    surfaceVariant = Color(0xFF1A2638),
+    onSurfaceVariant = Color(0xFF8FA3B8),
+    surfaceContainerHigh = Color(0xFF1A2638)
+)
+
+private val SunsetDarkColors = darkColorScheme(
+    primary = Color(0xFFF59E0B),
+    onPrimary = Color.White,
+    primaryContainer = Color(0xFFB45309),
+    onPrimaryContainer = Color(0xFFFEF3C7),
+    secondary = Color(0xFFFBBF24),
+    onSecondary = Color(0xFF78350F),
+    secondaryContainer = Color(0xFF451A03),
+    onSecondaryContainer = Color(0xFFFDE68A),
+    background = Color(0xFF140F08),
+    onBackground = Color(0xFFF8FAFC),
+    surface = Color(0xFF1E170F),
+    onSurface = Color(0xFFF8FAFC),
+    surfaceVariant = Color(0xFF302418),
+    onSurfaceVariant = Color(0xFFB0A090),
+    surfaceContainerHigh = Color(0xFF302418)
 )
 
 private val RoutineFlowShapes = Shapes(
@@ -77,10 +121,18 @@ private val RoutineFlowShapes = Shapes(
 @Composable
 fun RoutineFlowTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
+    palette: String = "Emerald",
     content: @Composable () -> Unit
 ) {
+    val colorScheme = when (palette) {
+        "Sakura" -> SakuraDarkColors
+        "Ocean" -> OceanDarkColors
+        "Sunset" -> SunsetDarkColors
+        else -> EmeraldDarkColors
+    }
+
     MaterialTheme(
-        colorScheme = if (darkTheme) RoutineFlowDarkColors else RoutineFlowLightColors,
+        colorScheme = colorScheme,
         typography = AppTypography,
         shapes = RoutineFlowShapes,
         content = content

@@ -52,7 +52,27 @@ interface RoutineDao {
 
     @Query("SELECT * FROM habits WHERE archived = 0 AND reminderMinutes IS NOT NULL")
     fun reminderHabits(): List<HabitEntity>
+
+    @Query("SELECT * FROM journal_entries ORDER BY timestamp DESC")
+    fun observeJournal(): Flow<List<JournalEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertJournal(entry: JournalEntity): Long
+
+    @Query("DELETE FROM journal_entries WHERE id = :id")
+    suspend fun deleteJournal(id: Long)
 }
+
+@androidx.room.Entity(tableName = "journal_entries")
+data class JournalEntity(
+    @androidx.room.PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val title: String,
+    val content: String,
+    val category: String = "Reflection",
+    val emoji: String = "📔",
+    val date: String,
+    val timestamp: Long = System.currentTimeMillis()
+)
 
 data class DailyCompletionCount(
     val date: String,

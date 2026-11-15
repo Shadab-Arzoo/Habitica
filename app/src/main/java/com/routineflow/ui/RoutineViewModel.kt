@@ -68,10 +68,29 @@ data class TodayUiState(
 class RoutineViewModel @Inject constructor(
     private val repository: RoutineRepository,
     private val taskRepository: TaskRepository,
+    private val preferences: com.routineflow.settings.Preferences,
     private val application: Application
 ) : ViewModel() {
     private val _bonusXp = MutableStateFlow(0)
     private val _equippedTree = MutableStateFlow("Auto")
+
+    val journalEntries: StateFlow<List<com.routineflow.data.local.JournalEntity>> = repository.journalEntries()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val themePalette: StateFlow<String> = preferences.themePalette
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "Emerald")
+
+    fun setThemePalette(palette: String) {
+        viewModelScope.launch { preferences.setThemePalette(palette) }
+    }
+
+    fun addJournalEntry(title: String, content: String, category: String = "Reflection", emoji: String = "📔") {
+        viewModelScope.launch { repository.addJournalEntry(title, content, category, emoji) }
+    }
+
+    fun deleteJournalEntry(id: Long) {
+        viewModelScope.launch { repository.deleteJournalEntry(id) }
+    }
 
     fun addTestXp(amount: Int = 100) {
         _bonusXp.value += amount
