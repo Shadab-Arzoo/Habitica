@@ -42,6 +42,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
@@ -1138,209 +1139,163 @@ private fun RoutineFlowApp(
         )
     }
     if (showSettingsDialog) {
-        Dialog(
+        SpringModalOverlay(
+            reducedMotion = reducedMotion,
             onDismissRequest = {
                 showSettingsDialog = false
                 avatarClickCount = 0
-            },
-            properties = DialogProperties(usePlatformDefaultWidth = false)
+            }
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.65f))
-                    .clickable {
+            Box(modifier = Modifier.fillMaxSize()) {
+                SettingsScreen(
+                    darkMode = darkMode,
+                    onThemeToggle = onThemeToggle,
+                    reducedMotion = reducedMotion,
+                    onReducedMotionChange = onReducedMotionChange,
+                    appLockEnabled = appLockEnabled,
+                    onAppLockChange = onAppLockChange,
+                    onExportBackup = {
+                        val backupJson = viewModel.exportBackupJson()
+                        val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+                        val clip = android.content.ClipData.newPlainText("RoutineFlow Backup", backupJson)
+                        clipboard?.setPrimaryClip(clip)
+                        android.widget.Toast.makeText(context, "Backup JSON copied to clipboard!", android.widget.Toast.LENGTH_LONG).show()
+                    },
+                    onRestoreBackup = {
+                        showRestoreDialog = true
+                    }
+                )
+                IconButton(
+                    onClick = {
                         showSettingsDialog = false
                         avatarClickCount = 0
-                    }
-                    .padding(horizontal = 16.dp, vertical = 28.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Surface(
-                    shape = RoundedCornerShape(28.dp),
-                    color = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 6.dp,
-                    shadowElevation = 16.dp,
+                    },
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .fillMaxHeight(0.88f)
-                        .clickable(enabled = false) {}
+                        .align(Alignment.TopEnd)
+                        .padding(12.dp)
                 ) {
-                    Box(modifier = Modifier.fillMaxSize()) {
-                        SettingsScreen(
-                            darkMode = darkMode,
-                            onThemeToggle = onThemeToggle,
-                            reducedMotion = reducedMotion,
-                            onReducedMotionChange = onReducedMotionChange,
-                            appLockEnabled = appLockEnabled,
-                            onAppLockChange = onAppLockChange,
-                            onExportBackup = {
-                                val backupJson = viewModel.exportBackupJson()
-                                val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
-                                val clip = android.content.ClipData.newPlainText("RoutineFlow Backup", backupJson)
-                                clipboard?.setPrimaryClip(clip)
-                                android.widget.Toast.makeText(context, "Backup JSON copied to clipboard!", android.widget.Toast.LENGTH_LONG).show()
-                            },
-                            onRestoreBackup = {
-                                showRestoreDialog = true
-                            }
-                        )
-                        IconButton(
-                            onClick = {
-                                showSettingsDialog = false
-                                avatarClickCount = 0
-                            },
-                            modifier = Modifier
-                                .align(Alignment.TopEnd)
-                                .padding(12.dp)
-                        ) {
-                            Icon(
-                                Icons.Rounded.Close,
-                                contentDescription = "Close Settings",
-                                tint = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                    }
+                    Icon(
+                        Icons.Rounded.Close,
+                        contentDescription = "Close Settings",
+                        tint = MaterialTheme.colorScheme.onSurface
+                    )
                 }
             }
         }
     }
 
     if (showTreeUnlockDialog) {
-        Dialog(
-            onDismissRequest = { showTreeUnlockDialog = false },
-            properties = DialogProperties(usePlatformDefaultWidth = false)
+        SpringModalOverlay(
+            reducedMotion = reducedMotion,
+            onDismissRequest = { showTreeUnlockDialog = false }
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.68f))
-                    .clickable { showTreeUnlockDialog = false }
-                    .padding(horizontal = 16.dp, vertical = 24.dp),
-                contentAlignment = Alignment.Center
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Surface(
-                    shape = RoundedCornerShape(28.dp),
-                    color = MaterialTheme.colorScheme.surface,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .fillMaxHeight(0.88f)
-                        .clickable(enabled = false) {}
+                Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                    Text("Tree Arboretum", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, maxLines = 1)
+                    Text("Equip species or auto-upgrade as you level up", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(20.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        modifier = Modifier.clickable { viewModel.addTestXp(100) }
+                    ) {
+                        Text(
+                            "+100 XP",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                        )
+                    }
+                    IconButton(onClick = { showTreeUnlockDialog = false }, modifier = Modifier.size(32.dp)) {
+                        Icon(Icons.Rounded.Close, contentDescription = "Close")
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            val userLevel = (state.xp / 100) + 1
+            val treeSpeciesList = listOf(
+                listOf("Auto (Auto-Upgrade)", "1", "Automatically uses your highest unlocked tree species"),
+                listOf("Emerald Pine", "1", "Classic resilient evergreen pine needles"),
+                listOf("Sakura Cherry", "3", "Gentle pink blossoms for mindful daily focus"),
+                listOf("Autumn Oak", "5", "Warm crimson autumn leaves with rich foliage"),
+                listOf("Mystic Willow", "7", "Cascading wisteria violet leaves with glowing spores"),
+                listOf("Celestial Redwood", "9", "Bioluminescent cyan redwood with stardust aura"),
+                listOf("Golden Bonsai", "12", "Golden amber foliage with ancient curved trunk"),
+                listOf("Cosmic Starlight", "15", "Rainbow gradient foliage with swirling fireflies")
+            )
+
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.weight(1f)
+            ) {
+                items(treeSpeciesList) { item ->
+                    val name = item[0]
+                    val reqLevel = item[1].toInt()
+                    val desc = item[2]
+
+                    val unlocked = userLevel >= reqLevel
+                    val isEquipped = state.equippedTree == name || (name.startsWith("Auto") && state.equippedTree == "Auto")
+
+                    Surface(
+                        shape = RoundedCornerShape(18.dp),
+                        color = when {
+                            isEquipped -> MaterialTheme.colorScheme.primaryContainer
+                            unlocked -> MaterialTheme.colorScheme.surfaceContainerHigh
+                            else -> MaterialTheme.colorScheme.surfaceContainerLow
+                        },
+                        border = BorderStroke(
+                            width = if (isEquipped) 2.dp else 1.dp,
+                            color = if (isEquipped) MaterialTheme.colorScheme.primary else Color.Transparent
+                        ),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                            modifier = Modifier.padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
-                                Text("Tree Arboretum", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, maxLines = 1)
-                                Text("Equip species or auto-upgrade as you level up", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            TreeSpeciesBadge(
+                                speciesName = name,
+                                unlocked = unlocked
+                            )
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Text(name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = if (unlocked) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant)
+                                    if (!unlocked) {
+                                        Text("🔒 Lvl $reqLevel+", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+                                    }
+                                }
+                                Text(desc, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Surface(
-                                    shape = CircleShape,
-                                    color = MaterialTheme.colorScheme.primaryContainer,
-                                    modifier = Modifier.clickable { viewModel.addTestXp(100) }
+
+                            if (unlocked) {
+                                Button(
+                                    onClick = {
+                                        val eqName = if (name.startsWith("Auto")) "Auto" else name
+                                        viewModel.setEquippedTree(eqName)
+                                    },
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (isEquipped) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondaryContainer,
+                                        contentColor = if (isEquipped) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSecondaryContainer
+                                    )
                                 ) {
                                     Text(
-                                        "+100 XP",
-                                        style = MaterialTheme.typography.labelMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                        text = if (isEquipped) "EQUIPPED" else "EQUIP",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold
                                     )
-                                }
-                                IconButton(onClick = { showTreeUnlockDialog = false }, modifier = Modifier.size(32.dp)) {
-                                    Icon(Icons.Rounded.Close, contentDescription = "Close")
-                                }
-                            }
-                        }
-
-                        val userLevel = (state.xp / 100) + 1
-                        val treeSpeciesList = listOf(
-                            listOf("Auto (Auto-Upgrade)", "1", "Automatically uses your highest unlocked tree species"),
-                            listOf("Emerald Pine", "1", "Classic resilient evergreen pine needles"),
-                            listOf("Sakura Cherry", "3", "Gentle pink blossoms for mindful daily focus"),
-                            listOf("Autumn Oak", "5", "Warm crimson autumn leaves with rich foliage"),
-                            listOf("Mystic Willow", "7", "Cascading wisteria violet leaves with glowing spores"),
-                            listOf("Celestial Redwood", "9", "Bioluminescent cyan redwood with stardust aura"),
-                            listOf("Golden Bonsai", "12", "Golden amber foliage with ancient curved trunk"),
-                            listOf("Cosmic Starlight", "15", "Rainbow gradient foliage with swirling fireflies")
-                        )
-
-                        LazyColumn(
-                            verticalArrangement = Arrangement.spacedBy(10.dp),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            items(treeSpeciesList) { item ->
-                                val name = item[0]
-                                val reqLevel = item[1].toInt()
-                                val desc = item[2]
-
-                                val unlocked = userLevel >= reqLevel
-                                val isEquipped = state.equippedTree == name || (name.startsWith("Auto") && state.equippedTree == "Auto")
-
-                                Surface(
-                                    shape = RoundedCornerShape(18.dp),
-                                    color = when {
-                                        isEquipped -> MaterialTheme.colorScheme.primaryContainer
-                                        unlocked -> MaterialTheme.colorScheme.surfaceContainerHigh
-                                        else -> MaterialTheme.colorScheme.surfaceContainerLow
-                                    },
-                                    border = BorderStroke(
-                                        width = if (isEquipped) 2.dp else 1.dp,
-                                        color = if (isEquipped) MaterialTheme.colorScheme.primary else Color.Transparent
-                                    ),
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(14.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                    ) {
-                                        TreeSpeciesBadge(
-                                            speciesName = name,
-                                            unlocked = unlocked
-                                        )
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                                Text(name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = if (unlocked) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant)
-                                                if (!unlocked) {
-                                                    Text("🔒 Lvl $reqLevel+", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
-                                                }
-                                            }
-                                            Text(desc, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                        }
-
-                                        if (unlocked) {
-                                            Button(
-                                                onClick = {
-                                                    val eqName = if (name.startsWith("Auto")) "Auto" else name
-                                                    viewModel.setEquippedTree(eqName)
-                                                },
-                                                shape = RoundedCornerShape(12.dp),
-                                                colors = ButtonDefaults.buttonColors(
-                                                    containerColor = if (isEquipped) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondaryContainer,
-                                                    contentColor = if (isEquipped) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSecondaryContainer
-                                                )
-                                            ) {
-                                                Text(
-                                                    text = if (isEquipped) "EQUIPPED" else "EQUIP",
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                    fontWeight = FontWeight.Bold
-                                                )
-                                            }
-                                        }
-                                    }
                                 }
                             }
                         }
@@ -1617,6 +1572,9 @@ private fun ConfettiOverlay(
             }
         }
 
+        val corner2 = remember(density) { androidx.compose.ui.geometry.CornerRadius(with(density) { 2.dp.toPx() }) }
+        val corner1 = remember(density) { androidx.compose.ui.geometry.CornerRadius(with(density) { 1.dp.toPx() }) }
+
         Canvas(modifier = Modifier.fillMaxSize()) {
             val canvasW = size.width
             val canvasH = size.height
@@ -1641,22 +1599,25 @@ private fun ConfettiOverlay(
                         when (particle.shapeType) {
                             0 -> {
                                 drawRoundRect(
-                                    color = particle.color.copy(alpha = currentAlpha),
+                                    color = particle.color,
+                                    alpha = currentAlpha,
                                     size = Size(particle.sizePx * 1.6f, particle.sizePx * 0.8f),
-                                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(2.dp.toPx(), 2.dp.toPx())
+                                    cornerRadius = corner2
                                 )
                             }
                             1 -> {
                                 drawCircle(
-                                    color = particle.color.copy(alpha = currentAlpha),
+                                    color = particle.color,
+                                    alpha = currentAlpha,
                                     radius = particle.sizePx / 2f
                                 )
                             }
                             else -> {
                                 drawRoundRect(
-                                    color = particle.color.copy(alpha = currentAlpha),
+                                    color = particle.color,
+                                    alpha = currentAlpha,
                                     size = Size(particle.sizePx * 2.5f, particle.sizePx * 0.5f),
-                                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(1.dp.toPx(), 1.dp.toPx())
+                                    cornerRadius = corner1
                                 )
                             }
                         }
@@ -1676,6 +1637,70 @@ private data class ConfettiParticle(
     val sizePx: Float,
     val shapeType: Int
 )
+
+@Composable
+private fun SpringModalOverlay(
+    onDismissRequest: () -> Unit,
+    reducedMotion: Boolean = false,
+    maxHeightRatio: Float = 0.88f,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    val entryProgress = remember { androidx.compose.animation.core.Animatable(0f) }
+
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        if (reducedMotion) {
+            entryProgress.snapTo(1f)
+        } else {
+            entryProgress.animateTo(
+                1f,
+                animationSpec = spring(
+                    dampingRatio = 0.74f,
+                    stiffness = 350f
+                )
+            )
+        }
+    }
+
+    Dialog(
+        onDismissRequest = onDismissRequest,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        val p = entryProgress.value
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.65f * p.coerceIn(0f, 1f)))
+                .clickable { onDismissRequest() }
+                .padding(horizontal = 16.dp, vertical = 24.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Surface(
+                shape = RoundedCornerShape(28.dp),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 6.dp,
+                shadowElevation = 16.dp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight(maxHeightRatio)
+                    .graphicsLayer {
+                        alpha = p.coerceIn(0f, 1f)
+                        translationY = androidx.compose.ui.util.lerp(50f, 0f, p)
+                        val s = androidx.compose.ui.util.lerp(0.88f, 1f, p)
+                        scaleX = s
+                        scaleY = s
+                    }
+                    .clickable(enabled = false) {}
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(20.dp),
+                    content = content
+                )
+            }
+        }
+    }
+}
 
 @Composable
 private fun WaterDropletBurst(
@@ -6155,74 +6180,76 @@ private fun ActivityLineChart(values: List<Int>, maxValue: Int) {
         isVisible = true
     }
 
+    val linePath = remember { Path() }
+    val fillPath = remember { Path() }
+
     Canvas(
         Modifier
             .fillMaxWidth()
             .height(96.dp)
             .semantics { contentDescription = "Seven day completion trend line chart" }
     ) {
-        val step = if (values.size == 1) size.width else size.width / (values.size - 1)
-        val points = values.mapIndexed { index, value ->
-            Offset(
-                x = index * step,
-                y = size.height - value.toFloat() / maxValue * size.height
-            )
-        }
+        val gridLineColor = onSurfaceColor.copy(alpha = .08f)
+        val gridStroke = 1.dp.toPx()
         
         // Draw background grid lines
         for (row in 1..3) {
             val y = size.height * row / 4f
             drawLine(
-                color = onSurfaceColor.copy(alpha = .08f),
+                color = gridLineColor,
                 start = Offset(0f, y),
                 end = Offset(size.width, y),
-                strokeWidth = 1.dp.toPx()
+                strokeWidth = gridStroke
             )
         }
         
-        if (points.size > 1) {
-            val path = Path().apply {
-                moveTo(points.first().x, points.first().y)
-                points.drop(1).forEach { lineTo(it.x, it.y) }
+        if (values.size > 1) {
+            val step = size.width / (values.size - 1)
+            
+            linePath.rewind()
+            values.forEachIndexed { index, value ->
+                val x = index * step
+                val y = size.height - (value.toFloat() / maxValue * size.height)
+                if (index == 0) linePath.moveTo(x, y) else linePath.lineTo(x, y)
             }
             
-            // Mask the path based on the animation progress
             clipRect(right = size.width * animatedProgress) {
-                // Gradient fill under the line
-                val fillPath = Path().apply {
-                    addPath(path)
-                    lineTo(points.last().x, size.height)
-                    lineTo(points.first().x, size.height)
-                    close()
-                }
+                fillPath.rewind()
+                fillPath.addPath(linePath)
+                fillPath.lineTo(size.width, size.height)
+                fillPath.lineTo(0f, size.height)
+                fillPath.close()
                 
                 drawPath(
                     path = fillPath,
                     brush = Brush.verticalGradient(
                         colors = listOf(
-                            secondaryColor.copy(alpha = 0.3f),
+                            secondaryColor.copy(alpha = 0.35f),
                             Color.Transparent
                         )
                     )
                 )
-
-                // Draw the line itself
+                
                 drawPath(
-                    path = path,
+                    path = linePath,
                     color = secondaryColor,
                     style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round)
                 )
-                
-                // Draw points
-                points.forEach { point ->
-                    drawCircle(surfaceColor, 5.dp.toPx(), point)
-                    drawCircle(secondaryColor, 3.dp.toPx(), point)
-                    
-                    // Specular highlight on dots
+            }
+
+            values.forEachIndexed { index, value ->
+                val x = index * step
+                val y = size.height - (value.toFloat() / maxValue * size.height)
+                if (x <= size.width * animatedProgress) {
                     drawCircle(
-                        color = Color.White.copy(alpha = 0.8f),
-                        radius = 1.5.dp.toPx(),
-                        center = Offset(point.x - 1.dp.toPx(), point.y - 1.dp.toPx())
+                        color = surfaceColor,
+                        radius = 5.dp.toPx(),
+                        center = Offset(x, y)
+                    )
+                    drawCircle(
+                        color = secondaryColor,
+                        radius = 3.dp.toPx(),
+                        center = Offset(x, y)
                     )
                 }
             }
