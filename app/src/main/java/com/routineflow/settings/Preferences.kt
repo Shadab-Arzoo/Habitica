@@ -22,7 +22,7 @@ class Preferences @Inject constructor(@ApplicationContext private val context: C
     private val onboardingCategoriesKey = stringSetPreferencesKey("onboarding_categories")
     val reducedMotion: Flow<Boolean> = context.preferencesDataStore.data.map { it[reducedMotionKey] ?: false }
     val darkTheme: Flow<Boolean?> = context.preferencesDataStore.data.map { it[darkThemeKey] }
-    val themePalette: Flow<String> = context.preferencesDataStore.data.map { it[themePaletteKey] ?: "Emerald" }
+    val themePalette: Flow<String> = context.preferencesDataStore.data.map { it[themePaletteKey] ?: "Ocean" }
     val appLockEnabled: Flow<Boolean> = context.preferencesDataStore.data.map { it[appLockEnabledKey] ?: false }
     val onboardingCompleted: Flow<Boolean> =
         context.preferencesDataStore.data.map { it[onboardingCompletedKey] ?: false }

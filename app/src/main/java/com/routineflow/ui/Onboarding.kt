@@ -149,7 +149,7 @@ class OnboardingViewModel @Inject constructor(
     val darkTheme: StateFlow<Boolean?> = preferences.darkTheme
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
     val themePalette: StateFlow<String> = preferences.themePalette
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "Emerald")
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "Ocean")
     val appLockEnabled: StateFlow<Boolean> = preferences.appLockEnabled
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 

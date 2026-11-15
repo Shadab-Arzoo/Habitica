@@ -186,6 +186,117 @@ private val SunsetDarkColors = darkColorScheme(
     surfaceContainerHigh = Color(0xFF3F2B0E)
 )
 
+// 5. CRIMSON AUTUMN (🍁)
+private val AutumnLightColors = lightColorScheme(
+    primary = Color(0xFFDC2626),
+    onPrimary = Color.White,
+    primaryContainer = Color(0xFFFEE2E2),
+    onPrimaryContainer = Color(0xFF7F1D1D),
+    secondary = Color(0xFFEF4444),
+    onSecondary = Color.White,
+    secondaryContainer = Color(0xFFFECACA),
+    onSecondaryContainer = Color(0xFF991B1B),
+    background = Color(0xFFFEF2F2),
+    onBackground = Color(0xFF7F1D1D),
+    surface = Color(0xFFFFFFFF),
+    onSurface = Color(0xFF7F1D1D),
+    surfaceVariant = Color(0xFFFEE2E2),
+    onSurfaceVariant = Color(0xFFDC2626),
+    surfaceContainerHigh = Color(0xFFFEE2E2)
+)
+
+private val AutumnDarkColors = darkColorScheme(
+    primary = Color(0xFFF87171),
+    onPrimary = Color(0xFF7F1D1D),
+    primaryContainer = Color(0xFF991B1B),
+    onPrimaryContainer = Color(0xFFFEE2E2),
+    secondary = Color(0xFFEF4444),
+    onSecondary = Color(0xFF7F1D1D),
+    secondaryContainer = Color(0xFF450A0A),
+    onSecondaryContainer = Color(0xFFFECACA),
+    background = Color(0xFF190707),
+    onBackground = Color(0xFFF8FAFC),
+    surface = Color(0xFF280C0C),
+    onSurface = Color(0xFFF8FAFC),
+    surfaceVariant = Color(0xFF3B1212),
+    onSurfaceVariant = Color(0xFFFCA5A5),
+    surfaceContainerHigh = Color(0xFF3B1212)
+)
+
+// 6. WISTERIA MYSTIC (💜)
+private val MysticLightColors = lightColorScheme(
+    primary = Color(0xFF9333EA),
+    onPrimary = Color.White,
+    primaryContainer = Color(0xFFF3E8FF),
+    onPrimaryContainer = Color(0xFF581C87),
+    secondary = Color(0xFFA855F7),
+    onSecondary = Color.White,
+    secondaryContainer = Color(0xFFE9D5FF),
+    onSecondaryContainer = Color(0xFF6B21A8),
+    background = Color(0xFFFAF5FF),
+    onBackground = Color(0xFF581C87),
+    surface = Color(0xFFFFFFFF),
+    onSurface = Color(0xFF581C87),
+    surfaceVariant = Color(0xFFF3E8FF),
+    onSurfaceVariant = Color(0xFF9333EA),
+    surfaceContainerHigh = Color(0xFFF3E8FF)
+)
+
+private val MysticDarkColors = darkColorScheme(
+    primary = Color(0xFFC084FC),
+    onPrimary = Color(0xFF581C87),
+    primaryContainer = Color(0xFF6B21A8),
+    onPrimaryContainer = Color(0xFFF3E8FF),
+    secondary = Color(0xFFA855F7),
+    onSecondary = Color(0xFF581C87),
+    secondaryContainer = Color(0xFF3B0764),
+    onSecondaryContainer = Color(0xFFE9D5FF),
+    background = Color(0xFF14081F),
+    onBackground = Color(0xFFF8FAFC),
+    surface = Color(0xFF1F0D30),
+    onSurface = Color(0xFFF8FAFC),
+    surfaceVariant = Color(0xFF2E1347),
+    onSurfaceVariant = Color(0xFFE9D5FF),
+    surfaceContainerHigh = Color(0xFF2E1347)
+)
+
+// 7. CYAN CELESTIAL (🌌)
+private val CelestialLightColors = lightColorScheme(
+    primary = Color(0xFF0891B2),
+    onPrimary = Color.White,
+    primaryContainer = Color(0xFFCFFAFE),
+    onPrimaryContainer = Color(0xFF155E75),
+    secondary = Color(0xFF06B6D4),
+    onSecondary = Color.White,
+    secondaryContainer = Color(0xFFA5F3FC),
+    onSecondaryContainer = Color(0xFF0E7490),
+    background = Color(0xFFECFEFF),
+    onBackground = Color(0xFF155E75),
+    surface = Color(0xFFFFFFFF),
+    onSurface = Color(0xFF155E75),
+    surfaceVariant = Color(0xFFCFFAFE),
+    onSurfaceVariant = Color(0xFF0891B2),
+    surfaceContainerHigh = Color(0xFFCFFAFE)
+)
+
+private val CelestialDarkColors = darkColorScheme(
+    primary = Color(0xFF22D3EE),
+    onPrimary = Color(0xFF155E75),
+    primaryContainer = Color(0xFF0E7490),
+    onPrimaryContainer = Color(0xFFCFFAFE),
+    secondary = Color(0xFF06B6D4),
+    onSecondary = Color(0xFF155E75),
+    secondaryContainer = Color(0xFF164E63),
+    onSecondaryContainer = Color(0xFFA5F3FC),
+    background = Color(0xFF05151A),
+    onBackground = Color(0xFFF8FAFC),
+    surface = Color(0xFF0A222B),
+    onSurface = Color(0xFFF8FAFC),
+    surfaceVariant = Color(0xFF103340),
+    onSurfaceVariant = Color(0xFF67E8F9),
+    surfaceContainerHigh = Color(0xFF103340)
+)
+
 private val RoutineFlowShapes = Shapes(
     extraSmall = RoundedCornerShape(10.dp),
     small = RoundedCornerShape(14.dp),
@@ -197,14 +308,17 @@ private val RoutineFlowShapes = Shapes(
 @Composable
 fun RoutineFlowTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    palette: String = "Emerald",
+    palette: String = "Ocean",
     content: @Composable () -> Unit
 ) {
     val colorScheme = when (palette) {
+        "Emerald" -> if (darkTheme) EmeraldDarkColors else EmeraldLightColors
         "Sakura" -> if (darkTheme) SakuraDarkColors else SakuraLightColors
-        "Ocean" -> if (darkTheme) OceanDarkColors else OceanLightColors
+        "Autumn" -> if (darkTheme) AutumnDarkColors else AutumnLightColors
+        "Mystic" -> if (darkTheme) MysticDarkColors else MysticLightColors
+        "Celestial" -> if (darkTheme) CelestialDarkColors else CelestialLightColors
         "Sunset" -> if (darkTheme) SunsetDarkColors else SunsetLightColors
-        else -> if (darkTheme) EmeraldDarkColors else EmeraldLightColors
+        else -> if (darkTheme) OceanDarkColors else OceanLightColors
     }
 
     MaterialTheme(

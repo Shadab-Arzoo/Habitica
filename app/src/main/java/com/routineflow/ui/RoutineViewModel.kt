@@ -78,7 +78,7 @@ class RoutineViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val themePalette: StateFlow<String> = preferences.themePalette
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "Emerald")
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "Ocean")
 
     fun setThemePalette(palette: String) {
         viewModelScope.launch { preferences.setThemePalette(palette) }

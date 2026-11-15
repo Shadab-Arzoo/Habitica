@@ -266,7 +266,24 @@ private fun RoutineFlowRoot() {
         }
     }
 
-    RoutineFlowTheme(darkTheme = isDarkMode, palette = themePalette) {
+    val routineViewModel: RoutineViewModel = hiltViewModel()
+    val state by routineViewModel.state.collectAsStateWithLifecycle()
+
+    val effectiveThemePalette = if (themePalette == "Auto") {
+        when (state.equippedTree) {
+            "Sakura Cherry" -> "Sakura"
+            "Autumn Oak" -> "Autumn"
+            "Mystic Willow" -> "Mystic"
+            "Celestial Redwood" -> "Celestial"
+            "Golden Bonsai" -> "Sunset"
+            "Cosmic Starlight" -> "Ocean"
+            else -> "Emerald"
+        }
+    } else {
+        themePalette
+    }
+
+    RoutineFlowTheme(darkTheme = isDarkMode, palette = effectiveThemePalette) {
         Surface(
             modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.background
@@ -1110,6 +1127,9 @@ private fun RoutineFlowApp(
                     else -> SettingsScreen(
                         darkMode = darkMode,
                         onThemeToggle = onThemeToggle,
+                        themePalette = themePalette,
+                        onThemePaletteChange = onThemePaletteChange,
+                        userLevel = (state.xp / 100) + 1,
                         reducedMotion = reducedMotion,
                         onReducedMotionChange = onReducedMotionChange,
                         appLockEnabled = appLockEnabled,
@@ -1162,6 +1182,9 @@ private fun RoutineFlowApp(
                 SettingsScreen(
                     darkMode = darkMode,
                     onThemeToggle = onThemeToggle,
+                    themePalette = themePalette,
+                    onThemePaletteChange = onThemePaletteChange,
+                    userLevel = (state.xp / 100) + 1,
                     reducedMotion = reducedMotion,
                     onReducedMotionChange = onReducedMotionChange,
                     appLockEnabled = appLockEnabled,
@@ -6548,12 +6571,20 @@ private fun heatmapColor(intensity: Float): Color {
     }
 }
 
+private data class ThemePaletteItem(
+    val key: String,
+    val label: String,
+    val reqLvl: Int,
+    val color: Color
+)
+
 @Composable
 private fun SettingsScreen(
     darkMode: Boolean,
     onThemeToggle: () -> Unit,
-    themePalette: String = "Emerald",
+    themePalette: String = "Ocean",
     onThemePaletteChange: (String) -> Unit = {},
+    userLevel: Int = 15,
     reducedMotion: Boolean,
     onReducedMotionChange: (Boolean) -> Unit,
     appLockEnabled: Boolean,
@@ -6612,38 +6643,51 @@ private fun SettingsScreen(
                         Icon(Icons.Rounded.Palette, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                         Text("Theme Color Palette", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     }
-                    Text("Select your primary accent color theme for the app", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Unlock tree-synced theme palettes as you level up your 3D forest!", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     
+                    val palettes = remember {
+                        listOf(
+                            ThemePaletteItem("Auto", "🌳 Auto (Tree-Synced)", 1, Color(0xFF10B981)),
+                            ThemePaletteItem("Emerald", "🌲 Emerald Pine", 1, Color(0xFF10B981)),
+                            ThemePaletteItem("Sakura", "🌸 Sakura Cherry", 3, Color(0xFFEC4899)),
+                            ThemePaletteItem("Autumn", "🍁 Autumn Oak", 5, Color(0xFFEF4444)),
+                            ThemePaletteItem("Mystic", "💜 Mystic Willow", 7, Color(0xFFA855F7)),
+                            ThemePaletteItem("Celestial", "🌌 Cyan Redwood", 9, Color(0xFF06B6D4)),
+                            ThemePaletteItem("Sunset", "✨ Golden Bonsai", 12, Color(0xFFF59E0B)),
+                            ThemePaletteItem("Ocean", "🌊 Midnight Ocean", 15, Color(0xFF0284C7))
+                        )
+                    }
+
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .horizontalScroll(rememberScrollState()),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        val palettes = listOf(
-                            Triple("Emerald", "🌲 Emerald", Color(0xFF10B981)),
-                            Triple("Sakura", "🌸 Sakura", Color(0xFFEC4899)),
-                            Triple("Ocean", "🌊 Ocean", Color(0xFF0284C7)),
-                            Triple("Sunset", "🌅 Sunset", Color(0xFFF59E0B))
-                        )
-                        palettes.forEach { (key, label, color) ->
-                            val selected = themePalette == key
+                        palettes.forEach { item ->
+                            val unlocked = userLevel >= item.reqLvl
+                            val selected = themePalette == item.key
+                            val chipLabel = if (unlocked) item.label else "${item.label} 🔒 Lvl ${item.reqLvl}+"
+
                             FilterChip(
                                 selected = selected,
-                                onClick = { onThemePaletteChange(key) },
-                                label = { Text(label, fontWeight = FontWeight.Bold) },
+                                onClick = { if (unlocked) onThemePaletteChange(item.key) },
+                                enabled = unlocked,
+                                label = { Text(chipLabel, fontWeight = FontWeight.Bold) },
                                 shape = RoundedCornerShape(12.dp),
                                 leadingIcon = {
                                     Box(
                                         modifier = Modifier
                                             .size(12.dp)
                                             .clip(CircleShape)
-                                            .background(color)
+                                            .background(if (unlocked) item.color else Color.Gray)
                                     )
                                 },
                                 colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = color.copy(alpha = 0.25f),
-                                    selectedLabelColor = MaterialTheme.colorScheme.onSurface
+                                    selectedContainerColor = item.color.copy(alpha = 0.3f),
+                                    selectedLabelColor = MaterialTheme.colorScheme.onSurface,
+                                    disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                                    disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                                 )
                             )
                         }
